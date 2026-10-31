@@ -1,4 +1,8 @@
 util_ss.add(files('osdep.c', 'cutils.c', 'unicode.c', 'qemu-timer-common.c'))
+# The prebuilt iOS GLib references pipe2(), which iPhoneOS does not export.
+if host_machine.subsystem() == 'ios'
+  util_ss.add(files('ios-pipe2-shim.c'))
+endif
 util_ss.add(files('thread-context.c'), numa)
 if host_os != 'windows'
   util_ss.add(files('aio-posix.c'))
