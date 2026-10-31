@@ -26,7 +26,7 @@ final class Settings: ObservableObject {
     }
 
     // The machine
-    @AppStorage("cores") var cores: Int = 4 {
+    @AppStorage("cores") var cores: Int = VMConfig.macGuest ? 2 : 4 {
         willSet { objectWillChange.send() }
     }
     /// Nothing below 4 for an iPhone guest: one core goes to the SEP, and with
@@ -64,7 +64,7 @@ final class Settings: ObservableObject {
     // 256 rather than 128 for a macOS guest: its code is many times an iPhone
     // guest's, and a buffer it does not fit in is flushed and retranslated
     // over and over (measured on the phone: 64 MB gave 8–11 fps, 256 gave 21–25).
-    @AppStorage("tbSize") var tbSize: Int = 256 {
+    @AppStorage("tbSize") var tbSize: Int = VMConfig.macGuest ? 128 : 256 {
         willSet { objectWillChange.send() }
     }
     /// Use HVF when the kernel allows it. On by default: where it is not
@@ -89,7 +89,7 @@ final class Settings: ObservableObject {
     }
     /// The resolution a macOS guest boots at, as `REIMS_VGPU_DISPLAY_MODE`
     /// spells it. Empty keeps the device's own list, 1920×1080 first.
-    @AppStorage("guestResolution") var guestResolution: String = "" {
+    @AppStorage("guestResolution") var guestResolution: String = VMConfig.macGuest ? "960x540" : "" {
         willSet { objectWillChange.send() }
     }
     /// What `guestResolution` may be: the 16:9 modes the device accepts, the
@@ -127,7 +127,7 @@ final class Settings: ObservableObject {
     /// The guest display's refresh rate, as `REIMS_VGPU_DISPLAY_HZ` spells it.
     /// macOS paces its compositor to the display, so a slower one is less work
     /// for every emulated core. Empty keeps the device's 120 Hz.
-    @AppStorage("guestRefresh") var guestRefresh: String = "" {
+    @AppStorage("guestRefresh") var guestRefresh: String = VMConfig.macGuest ? "30" : "" {
         willSet { objectWillChange.send() }
     }
     /// The screen as a trackpad: the pointer moves by how far a finger
