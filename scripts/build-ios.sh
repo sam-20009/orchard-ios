@@ -82,8 +82,8 @@ if [ ! -f "$IOS/build.ninja" ]; then
         -Dcoroutine_backend=ucontext -Dqom_cast_debug=false)
 fi
 
-echo "==> ninja -j$JOBS"
-"${NINJA:-ninja}" -C "$IOS" -j"$JOBS"
+echo "==> building Orchard iOS QEMU dylib only (-j$JOBS)"
+"${NINJA:-ninja}" -C "$IOS" -j"$JOBS" libqemu-aarch64-softmmu.dylib
 
 lib="$IOS/libqemu-aarch64-softmmu.dylib"
 echo
