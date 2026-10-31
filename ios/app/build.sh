@@ -144,26 +144,30 @@ else
 fi
 
 
-# App icon. Two sources, same actool-compile-then-merge-partial-plist dance:
-# the Info.plist keys actool wants come back in a partial plist, merged
-# rather than transcribed so a change to the icon needs no change here.
-#
-#   Orchard.icon   — Icon Composer's bundle, iOS 26's Liquid Glass layers.
-#                    Only actool from Xcode 26+ can compile it.
-#   Assets.xcassets — a flat PNG catalog rendered from the same artwork,
-#                    for older Xcode. Works everywhere but does not get the
-#                    glass treatment.
-#
-# Local builds get the real one; ORCHARD_NO_ICON=1 skips both (app ships
-# with no icon at all).
+# App icon. Prefer the classic Assets.xcassets catalog on GitHub Actions:
+# the Icon Composer probe can pass while its full compilation fails on CI.
+# Keep a local Icon Composer attempt for Xcode versions that support it.
+# Icon generation is optional; never prevent an otherwise valid IPA from
+# being packaged just because actool rejected the asset catalog.
 compile_icon() { # compile_icon <catalog-dir> <app-icon-name>
-    xcrun actool --compile "$APP" \
+    local catalog="$1"
+    local name="$2"
+    rm -f "$BUILD/icon.plist" "$BUILD/icon-actool.log"
+    if ! xcrun actool --compile "$APP" \
         --platform iphoneos \
         --minimum-deployment-target 16.0 \
-        --app-icon "$2" \
+        --app-icon "$name" \
         --output-partial-info-plist "$BUILD/icon.plist" \
         --include-all-app-icons \
-        "$1" > /dev/null
+        "$catalog" >"$BUILD/icon-actool.log" 2>&1; then
+        echo "warning: actool failed for $name:" >&2
+        cat "$BUILD/icon-actool.log" >&2
+        return 1
+    fi
+    if [ ! -f "$BUILD/icon.plist" ]; then
+        echo "warning: actool did not create icon.plist for $name" >&2
+        return 1
+    fi
     python3 - "$APP/Info.plist" "$BUILD/icon.plist" <<'PY'
 import plistlib, sys
 target, partial = sys.argv[1], sys.argv[2]
@@ -176,18 +180,25 @@ PY
 }
 
 ICON="$ROOT/Resources/Orchard.icon"
-ICON_NAME=Orchard
 FALLBACK_ICON="$ROOT/Resources/Assets.xcassets"
 if [ -z "${ORCHARD_NO_ICON:-}" ]; then
-    # The probe compiles into the build directory, not /tmp, so nothing is left behind.
-    mkdir -p "$BUILD/actool-probe"
-    if [ -d "$ICON" ] && xcrun actool --version >/dev/null 2>&1 && \
-       xcrun actool --compile "$BUILD/actool-probe" --app-icon "$ICON_NAME" "$ICON" >"$BUILD/actool-probe.log" 2>&1; then
-        echo "==> Иконка (Icon Composer: $ICON_NAME)"
-        compile_icon "$ICON" "$ICON_NAME"
+    if [ -n "${GITHUB_ACTIONS:-}" ]; then
+        echo "==> CI icon (classic Assets.xcassets)"
+        if [ -d "$FALLBACK_ICON" ] && compile_icon "$FALLBACK_ICON" AppIcon; then
+            echo "    compiled AppIcon successfully"
+        else
+            echo "warning: icon unavailable; continuing to sign the app" >&2
+            rm -f "$APP/Assets.car"
+        fi
+    elif [ -d "$ICON" ] && xcrun actool --version >/dev/null 2>&1 \
+         && compile_icon "$ICON" Orchard; then
+        echo "==> Icon Composer icon compiled"
     elif [ -d "$FALLBACK_ICON" ]; then
-        echo "==> Иконка (плоский .xcassets — Xcode тут старше 26, .icon не берёт)"
-        compile_icon "$FALLBACK_ICON" AppIcon
+        echo "==> Falling back to classic icon"
+        if ! compile_icon "$FALLBACK_ICON" AppIcon; then
+            echo "warning: icon unavailable; continuing without icon" >&2
+            rm -f "$APP/Assets.car"
+        fi
     fi
 fi
 
