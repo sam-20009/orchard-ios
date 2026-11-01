@@ -1,0 +1,109 @@
+name: Reims vGPU - teste de VM gratuita
+
+on:
+  push:
+    branches:
+      - reims-cloud-vm-check
+    paths:
+      - .github/workflows/reims-cloud-vm.yml
+  workflow_dispatch:
+    inputs:
+      attempt_build:
+        description: "Tentar compilar o Reims (experimental, nao inicia macOS)"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostico:
+    name: Verificar KVM, Vulkan e udmabuf
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - name: Instalar ferramentas de diagnostico
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends vulkan-tools mesa-vulkan-drivers
+
+      - name: Verificar recursos reais da VM do GitHub
+        id: hardware
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "=== Processador ===" | tee vm-diagnostics.txt
+          lscpu | grep -E 'Architecture:|CPU\(s\):|Model name:|Virtualization:' | tee -a vm-diagnostics.txt || true
+          echo "=== Memoria e disco ===" | tee -a vm-diagnostics.txt
+          free -h | tee -a vm-diagnostics.txt
+          df -h . | tee -a vm-diagnostics.txt
+
+          kvm="nao"
+          udmabuf="nao"
+          gpu="nao"
+          if [ -c /dev/kvm ] && [ -r /dev/kvm ] && [ -w /dev/kvm ]; then
+            kvm="sim"
+          fi
+          if [ -c /dev/udmabuf ] && [ -r /dev/udmabuf ] && [ -w /dev/udmabuf ]; then
+            udmabuf="sim"
+          fi
+          echo "=== Dispositivos ===" | tee -a vm-diagnostics.txt
+          ls -l /dev/kvm /dev/udmabuf 2>&1 | tee -a vm-diagnostics.txt || true
+
+          timeout 45s vulkaninfo --summary > vulkan-summary.txt 2>&1 || true
+          echo "=== Vulkan ===" | tee -a vm-diagnostics.txt
+          cat vulkan-summary.txt | tee -a vm-diagnostics.txt
+
+          # Lavapipe/llvmpipe usa CPU: Vulkan no software nao significa GPU real.
+          if grep -Eiq 'deviceType[[:space:]]*=[[:space:]]*PHYSICAL_DEVICE_TYPE_(DISCRETE_GPU|INTEGRATED_GPU|VIRTUAL_GPU)' vulkan-summary.txt; then
+            gpu="sim"
+          fi
+
+          echo "kvm=$kvm" >> "$GITHUB_OUTPUT"
+          echo "udmabuf=$udmabuf" >> "$GITHUB_OUTPUT"
+          echo "gpu=$gpu" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "# Diagnostico da VM gratuita para Reims vGPU"
+            echo
+            echo "| Requisito | Disponivel |"
+            echo "|---|---|"
+            echo "| KVM acessivel | $kvm |"
+            echo "| Vulkan com GPU (nao apenas CPU) | $gpu |"
+            echo "| /dev/udmabuf acessivel | $udmabuf |"
+            echo
+            if [ "$kvm" = sim ] && [ "$gpu" = sim ] && [ "$udmabuf" = sim ]; then
+              echo "**Resultado:** os requisitos basicos parecem presentes. Ainda e necessario testar o Reims; macOS nao foi iniciado."
+            else
+              echo "**Resultado:** nao foram confirmados todos os requisitos para executar macOS com Reims vGPU neste runner."
+            fi
+            echo
+            echo "Atencao: este job testa o host; ele nao cria uma VM macOS, nao instala macOS e nao oferece desktop remoto persistente."
+            echo
+            echo "Para detalhes, baixe o artefato reims-vm-diagnostico."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Compilar Reims e rodar doctor (opcional e experimental)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.attempt_build }}
+        shell: bash
+        env:
+          CARGO_BUILD_JOBS: "2"
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/steelbrain/reims-vgpu.git
+          cd reims-vgpu
+          bash scripts/install-ctl.sh --yes
+          export PATH="$HOME/.cargo/bin:$PATH"
+          reims-ctl doctor
+
+      - name: Guardar relatorio
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reims-vm-diagnostico
+          path: |
+            vm-diagnostics.txt
+            vulkan-summary.txt
+          if-no-files-found: warn
