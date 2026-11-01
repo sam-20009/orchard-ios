@@ -1,0 +1,131 @@
+name: Reims vGPU - matriz de hosts gratuitos
+
+on:
+  push:
+    branches: [reims-cloud-vm-check]
+    paths:
+      - .github/workflows/reims-cloud-matrix.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host-probe:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x64 - Ubuntu 24.04
+            runner: ubuntu-24.04
+            family: linux
+          - name: Linux arm64 - Ubuntu 24.04
+            runner: ubuntu-24.04-arm
+            family: linux
+          - name: macOS Apple Silicon M1
+            runner: macos-26
+            family: macos
+          - name: macOS Intel
+            runner: macos-26-intel
+            family: macos
+    steps:
+      - name: CPU, RAM, disco e arquitetura
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p reports
+          {
+            echo "=== Sistema ==="
+            uname -a
+            echo "=== CPU / RAM ==="
+            if [ "$(uname)" = Linux ]; then lscpu | grep -E 'Architecture:|CPU\(s\):|Model name:|Virtualization:' || :; free -h; else sysctl -n machdep.cpu.brand_string 2>/dev/null || sysctl -n hw.model; sysctl -n hw.memsize; fi
+            echo "=== Disco ==="
+            df -h .
+            echo "=== Ambiente grafico ==="
+            env | grep -E '^(DISPLAY|WAYLAND_DISPLAY|XDG_SESSION_TYPE)=' || :
+          } 2>&1 | tee reports/host.txt
+
+      - name: Diagnostico KVM, Vulkan, permissao e GPU
+        if: matrix.family == 'linux'
+        shell: bash
+        run: |
+          set -uo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends vulkan-tools mesa-vulkan-drivers pciutils
+          {
+            echo "=== Arquivos de KVM e DMA-BUF ==="
+            ls -l /dev/kvm /dev/udmabuf /dev/dri/* 2>&1 || :
+            echo "=== Teste abertura KVM / DMA-BUF ==="
+            python3 - <<'PY'
+          import os
+          for name in ('/dev/kvm', '/dev/udmabuf'):
+              try:
+                  fd = os.open(name,os.O_RDWR)
+                  print(name, 'ABRE OK')
+                  os.close(fd)
+              except Exception as e:
+                  print(name, 'FALHOU', str(e))
+          PY
+            echo "=== PCI GPU ==="
+            lspci | grep -Ei 'vga|3d controller|display' || :
+            echo "=== Vulkan dispositivos ==="
+            timeout 35s vulkaninfo --summary 2>&1 || :
+            echo "=== Extensao necessaria Vulkan ==="
+            timeout 35s vulkaninfo 2>/dev/null | grep -m 6 -E 'VK_EXT_external_memory_host|VK_KHR_external_memory' || :
+          } 2>&1 | tee reports/graphics.txt
+
+      - name: Diagnostico Metal e Hypervisor Framework
+        if: matrix.family == 'macos'
+        shell: bash
+        run: |
+          set -uo pipefail
+          {
+            echo "=== Metal ==="
+            cat > /tmp/reims_metal.swift <<'SWIFT'
+          import Metal
+          if let device = MTLCreateSystemDefaultDevice() {
+              print("Metal device:", device.name)
+              print("Metal low-power:", device.isLowPower)
+          } else { print("Metal device: NOT AVAILABLE") }
+          SWIFT
+            swift /tmp/reims_metal.swift || :
+            echo "=== Hypervisor support ==="
+            sysctl kern.hv_support 2>&1 || :
+            echo "=== Hypervisor actual VM allocation test ==="
+            cat >/tmp/reims_hv.c <<'C'
+          #include <Hypervisor/hv.h>
+          #include <stdio.h>
+          int main(void) {
+              hv_return_t err = hv_vm_create(HV_VM_DEFAULT);
+              printf("hv_vm_create returned: %d (HV_SUCCESS = %d)\n", (int)err, (int)HV_SUCCESS);
+              if (err == HV_SUCCESS) hv_vm_destroy();
+              return 0;
+          }
+          C
+            clang /tmp/reims_hv.c -framework Hypervisor -o /tmp/reims_hv && /tmp/reims_hv || :
+            echo "=== GPU hardware ==="
+            system_profiler SPDisplaysDataType 2>&1 | head -70 || :
+          } 2>&1 | tee reports/graphics.txt
+
+      - name: Resumo e relatorios
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## ${{ matrix.name }}"
+            echo
+            echo "A presenca da GPU, Vulkan ou Metal nao significa que o Reims inicializa uma VM."
+            echo
+            echo "Veja os arquivos \`host.txt\` e \`graphics.txt\` no artefato."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enviar relatorio
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reims-${{ matrix.runner }}-probe
+          path: reports/
+          if-no-files-found: warn
