@@ -18,6 +18,7 @@ struct VRBoxLabTab: View {
     @AppStorage("vrbox.highContrast") private var highContrast = false
     @AppStorage("vrbox.lightMode") private var lightMode = true
     @AppStorage("vrbox.seated") private var seated = true
+    @AppStorage("vrbox.cameraOnEntry") private var cameraOnEntry = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -41,10 +42,11 @@ struct VRBoxLabTab: View {
                 }
                 Section("Como controlar") {
                     Text("Agarre o painel com uma pinça no fundo ou use o canto verde para redimensionar. Para ativar um botão, solte a pinça sobre ele.")
-                    Text("No controle, Y alterna o modo, A confirma ou segura, X muda a ação, B recentraliza e Menu fecha.")
+                    Text("No controle, Y alterna o modo, A confirma ou segura, X muda a ação, B recentraliza, LB alterna a câmera e Menu fecha.")
                 }
                 Section("Câmera e biblioteca") {
-                    Text("Deixe a câmera traseira livre. O rastreamento é local e usa a câmera apenas com o visor aberto.")
+                    Toggle("Mostrar ambiente ao abrir o visor", isOn: $cameraOnEntry)
+                    Text("Deixe a câmera traseira livre. A imagem é exibida nos dois olhos e fica no iPhone. Experimente com o visor enquanto estiver parado.")
                     Button("Abrir biblioteca Android") { Router.shared.tab = .library }
                 }
             }
@@ -60,7 +62,7 @@ struct VRBoxLabTab: View {
             VRBoxSurface(options: VRBoxOptions(
                 ipd: Float(ipd / 1000), distance: Float(distance), large: largeText,
                 contrast: highContrast, light: lightMode || ProcessInfo.processInfo.isLowPowerModeEnabled,
-                seated: seated, reduceMotion: reduceMotion
+                seated: seated, reduceMotion: reduceMotion, cameraOnEntry: cameraOnEntry
             )) { openLibrary in
                 goToLibrary = openLibrary
                 showing = false
@@ -80,6 +82,7 @@ private struct VRBoxOptions {
     let light: Bool
     let seated: Bool
     let reduceMotion: Bool
+    let cameraOnEntry: Bool
 }
 
 private struct VRBoxSurface: UIViewControllerRepresentable {
@@ -99,6 +102,12 @@ private final class VRBoxController: UIViewController {
     private let tracking: VRBoxTracking
 
     private let scene = SCNScene()
+    private let virtualBackground = UIColor(red: 0.025, green: 0.038, blue: 0.077, alpha: 1)
+    private weak var firstEye: SCNView?
+    private var showCamera = false
+    private var cameraEpoch = 0
+    private var cameraViewport: CGSize?
+    private var lastCameraFrame: Double?
     private let head = SCNNode()
     private let menuSpace = SCNNode()
     private let panel = SCNNode(geometry: SCNPlane(width: CGFloat(VRBoxMenu.width), height: CGFloat(VRBoxMenu.height)))
@@ -121,7 +130,7 @@ private final class VRBoxController: UIViewController {
     private enum Handle { case move, resize }
     private var mode = Mode.hand
     private var controllerHandle = Handle.move
-    private var gamepadButtons = [false, false, false, false]
+    private var gamepadButtons = [false, false, false, false, false]
     private var gamepadNeedsRelease = true
 
     private struct Hold {
@@ -141,7 +150,9 @@ private final class VRBoxController: UIViewController {
     init(options: VRBoxOptions, close: @escaping (Bool) -> Void) {
         self.options = options
         self.close = close
-        self.tracking = VRBoxTracking(handInterval: options.light ? 0.1 : 1.0 / 12)
+        self.tracking = VRBoxTracking(handInterval: options.light ? 0.1 : 1.0 / 12,
+            previewInterval: options.light ? 1.0 / 16 : 1.0 / 31,
+            previewResolution: options.light ? 640 : 800)
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -153,7 +164,9 @@ private final class VRBoxController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .black
-        scene.background.contents = UIColor(red: 0.025, green: 0.038, blue: 0.077, alpha: 1)
+        scene.background.contents = virtualBackground
+        scene.background.minificationFilter = .linear
+        scene.background.magnificationFilter = .linear
         scene.rootNode.addChildNode(head)
         scene.rootNode.addChildNode(menuSpace)
         menuSpace.addChildNode(panel)
@@ -167,7 +180,9 @@ private final class VRBoxController: UIViewController {
         // Fixed reference markers let the wearer see the effect of head movement.
         if !options.reduceMotion { addReferenceGrid() }
 
-        let eyes = UIStackView(arrangedSubviews: [-1.0 as Float, 1.0].map(makeEye))
+        let leftEye = makeEye(-1)
+        firstEye = leftEye
+        let eyes = UIStackView(arrangedSubviews: [leftEye, makeEye(1)])
         eyes.distribution = .fillEqually
         eyes.spacing = 2
         eyes.translatesAutoresizingMaskIntoConstraints = false
@@ -182,6 +197,7 @@ private final class VRBoxController: UIViewController {
         let buttons = UIStackView(arrangedSubviews: [
             button("Mãos / controle", #selector(toggleMode)),
             button("Centralizar", #selector(recenter)),
+            button("Câmera", #selector(toggleCamera)),
             button("Sair", #selector(leave)),
         ])
         buttons.spacing = 12
@@ -196,6 +212,9 @@ private final class VRBoxController: UIViewController {
         tracking.onPose = { [weak self] pose, quality in self?.applyHead(pose, quality: quality) }
         tracking.onHand = { [weak self] sample in self?.applyHand(sample) }
         tracking.onQuality = { [weak self] quality in self?.updateQuality(quality) }
+        tracking.onPreview = { [weak self] image, epoch, capturedAt in
+            self?.applyCameraFrame(image, epoch: epoch, capturedAt: capturedAt)
+        }
         tracking.onFailure = { [weak self] error in
             guard let self = self, self.active else { return }
             let dialog = UIAlertController(title: "Rastreamento indisponível", message: error.localizedDescription, preferredStyle: .alert)
@@ -209,6 +228,9 @@ private final class VRBoxController: UIViewController {
         active = true
         HuskOrientation.set(.landscapeRight)
         tracking.start()
+        showCamera = options.cameraOnEntry
+        updateCameraViewport()
+        updateTexture()
         let link = CADisplayLink(target: self, selector: #selector(tick))
         link.preferredFramesPerSecond = 30
         link.add(to: .main, forMode: .common)
@@ -217,11 +239,17 @@ private final class VRBoxController: UIViewController {
 
     override func viewWillDisappear(_ animated: Bool) {
         active = false
+        updateCameraViewport()
         displayLink?.invalidate()
         displayLink = nil
         tracking.pause()
         HuskOrientation.set(HuskOrientation.standard)
         super.viewWillDisappear(animated)
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        updateCameraViewport()
     }
 
     private func addReferenceGrid() {
@@ -261,6 +289,33 @@ private final class VRBoxController: UIViewController {
     }
 
     @objc private func leave() { close(false) }
+
+    @objc private func toggleCamera() {
+        showCamera.toggle()
+        updateCameraViewport()
+        updateTexture()
+    }
+
+    private func updateCameraViewport() {
+        let eyeSize = firstEye?.bounds.size
+        let size = active && showCamera && (eyeSize?.width ?? 0) >= 2 && (eyeSize?.height ?? 0) >= 2
+            ? eyeSize : nil
+        guard size != cameraViewport else { return }
+        cameraViewport = size
+        cameraEpoch += 1
+        lastCameraFrame = nil
+        scene.background.contents = virtualBackground
+        tracking.setPreviewViewport(size, epoch: cameraEpoch)
+    }
+
+    private func applyCameraFrame(_ image: CGImage, epoch: Int, capturedAt: Double) {
+        guard active, showCamera, epoch == cameraEpoch,
+            ProcessInfo.processInfo.systemUptime - capturedAt < 0.30 else { return }
+        let wasWaiting = lastCameraFrame == nil
+        lastCameraFrame = capturedAt
+        scene.background.contents = image
+        if wasWaiting { updateTexture() }
+    }
 
     @objc private func recenter() {
         needsCenter = true
@@ -307,7 +362,9 @@ private final class VRBoxController: UIViewController {
         panel.geometry?.firstMaterial?.diffuse.contents = VRBoxMenu.image(
             mode: mode == .hand ? "Controles com a mão" : "Controle Bluetooth",
             status: status, hint: hint, focus: focus, pressed: pinchActive,
-            help: help, canUndo: undoLayout != nil, large: options.large, contrast: options.contrast
+            help: help, canUndo: undoLayout != nil, large: options.large, contrast: options.contrast,
+            camera: showCamera ? (lastCameraFrame == nil ? "CÂMERA AGUARDANDO" : "CÂMERA AO VIVO") : nil,
+            cameraLive: lastCameraFrame != nil
         )
     }
 
@@ -351,6 +408,8 @@ private final class VRBoxController: UIViewController {
             help.toggle()
         case .library:
             close(true)
+        case .camera:
+            toggleCamera()
         case .exit:
             close(false)
         }
@@ -379,6 +438,11 @@ private final class VRBoxController: UIViewController {
 
     @objc private func tick() {
         guard active else { return }
+        if let capturedAt = lastCameraFrame, ProcessInfo.processInfo.systemUptime - capturedAt > 0.35 {
+            lastCameraFrame = nil
+            scene.background.contents = virtualBackground
+            updateTexture()
+        }
         if mode == .hand, hasHand, ProcessInfo.processInfo.systemUptime - lastHand > 0.30 {
             hasHand = false
             resetInput()
@@ -391,10 +455,11 @@ private final class VRBoxController: UIViewController {
         }
         guard let pad = pad else {
             if mode == .controller { resetInput() }
-            gamepadButtons = [false, false, false, false]
+            gamepadButtons = [false, false, false, false, false]
             return
         }
-        let buttons = [pad.buttonY.isPressed, pad.buttonX.isPressed, pad.buttonB.isPressed, pad.buttonMenu.isPressed]
+        let buttons = [pad.buttonY.isPressed, pad.buttonX.isPressed, pad.buttonB.isPressed,
+            pad.buttonMenu.isPressed, pad.leftShoulder.isPressed]
         let rising = zip(buttons, gamepadButtons).map { $0.0 && !$0.1 }
         gamepadButtons = buttons
         if rising[0] { toggleMode() }
@@ -404,6 +469,7 @@ private final class VRBoxController: UIViewController {
         }
         if rising[2] { recenter() }
         if rising[3] { leave(); return }
+        if rising[4] { toggleCamera() }
         guard mode == .controller, hasHeadPose, quality == .normal else { return }
         let pressing = pad.buttonA.isPressed
         if !pressing { gamepadNeedsRelease = false }
@@ -492,18 +558,29 @@ private final class VRBoxTracking: NSObject, ARSessionDelegate {
     private let visionQueue = DispatchQueue(label: "vrbox.hand", qos: .userInitiated)
     private let handRequest = VNDetectHumanHandPoseRequest()
     private let handInterval: Double
+    private let previewInterval: Double
+    private let previewResolution: CGFloat
+    private let previewQueue = DispatchQueue(label: "vrbox.camera", qos: .userInitiated)
+    private lazy var camera = VRBoxCamera() // Access only on previewQueue.
     // These fields are read and written only on frameQueue.
     private var lastHandRequest = -Double.infinity
     private var handRequestRunning = false
     private var handEnabled = true
+    private var previewViewport: CGSize?
+    private var previewEpoch = 0
+    private var previewBusy = false
+    private var lastPreviewRequest = -Double.infinity
 
     var onPose: ((simd_float4x4, VRBoxTrackingQuality) -> Void)?
     var onQuality: ((VRBoxTrackingQuality) -> Void)?
     var onHand: ((VRBoxHandSample?) -> Void)?
     var onFailure: ((Error) -> Void)?
+    var onPreview: ((CGImage, Int, Double) -> Void)?
 
-    init(handInterval: Double) {
+    init(handInterval: Double, previewInterval: Double, previewResolution: CGFloat) {
         self.handInterval = handInterval
+        self.previewInterval = previewInterval
+        self.previewResolution = previewResolution
         super.init()
         tracking.delegate = self
         tracking.delegateQueue = frameQueue
@@ -512,6 +589,14 @@ private final class VRBoxTracking: NSObject, ARSessionDelegate {
 
     func setHandEnabled(_ enabled: Bool) {
         frameQueue.async { self.handEnabled = enabled }
+    }
+
+    func setPreviewViewport(_ size: CGSize?, epoch: Int) {
+        frameQueue.async {
+            self.previewViewport = size
+            self.previewEpoch = epoch
+            self.lastPreviewRequest = -Double.infinity
+        }
     }
 
     func start() {
@@ -540,6 +625,7 @@ private final class VRBoxTracking: NSObject, ARSessionDelegate {
         @unknown default: quality = .unavailable
         }
         DispatchQueue.main.async { [weak self] in self?.onPose?(displayPose, quality) }
+        publishPreview(from: frame)
 
         guard quality == .normal, handEnabled, !handRequestRunning, frame.timestamp - lastHandRequest >= handInterval else { return }
         lastHandRequest = frame.timestamp
@@ -552,6 +638,27 @@ private final class VRBoxTracking: NSObject, ARSessionDelegate {
             let sample = self.readHand(image, intrinsics: intrinsics, pose: rawPose)
             self.frameQueue.async { self.handRequestRunning = false }
             DispatchQueue.main.async { [weak self] in self?.onHand?(sample) }
+        }
+    }
+
+    private func publishPreview(from frame: ARFrame) {
+        guard let viewport = previewViewport, !previewBusy,
+            frame.timestamp - lastPreviewRequest >= previewInterval else { return }
+        previewBusy = true
+        lastPreviewRequest = frame.timestamp
+        let epoch = previewEpoch
+        let capturedAt = ProcessInfo.processInfo.systemUptime
+        let pixels = frame.capturedImage
+        let transform = frame.displayTransform(for: .landscapeRight, viewportSize: viewport)
+        previewQueue.async { [weak self] in
+            guard let self = self else { return }
+            let image = self.camera.image(from: pixels, displayTransform: transform,
+                viewport: viewport, maxDimension: self.previewResolution)
+            self.frameQueue.async {
+                self.previewBusy = false
+                guard let image = image, self.previewEpoch == epoch else { return }
+                DispatchQueue.main.async { [weak self] in self?.onPreview?(image, epoch, capturedAt) }
+            }
         }
     }
 

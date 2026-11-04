@@ -19,6 +19,31 @@ def replace_once(path, old, new):
     path.write_text(original.replace(old, new, 1), encoding="utf-8")
 
 
+
+def normalize_stikjit_interfaces(source):
+    """Spell the pinned Swift 6.4 interface's module selectors for Swift 6.2."""
+    framework = source / (
+        "src/app/Frameworks/StikJIT.xcframework/ios-arm64/StikJIT.framework"
+    )
+    module = framework / "Modules/StikJIT.swiftmodule"
+    for name in ("arm64-apple-ios.swiftinterface", "arm64-apple-ios.private.swiftinterface"):
+        path = module / name
+        original = path.read_text(encoding="utf-8")
+        if "Apple Swift version 6.4" not in original or "StikJIT::DDIPaths" not in original:
+            raise ValueError(f"Unexpected StikJIT interface: {path.name}")
+
+        # The module and its public enum have the same name. Use local names
+        # for its top-level declarations and retain the enum's nested names.
+        updated = original.replace("StikJIT::StikJIT.StikJIT::", "StikJIT.")
+        updated = updated.replace("StikJIT::", "")
+        for dependency in ("Swift", "Foundation", "_Concurrency"):
+            updated = updated.replace(f"{dependency}::", f"{dependency}.")
+        updated = updated.replace(" -interface-compiler-version 6.4", "")
+        if "::" in updated:
+            raise ValueError(f"Unhandled StikJIT module selector in {path.name}")
+        path.write_text(updated, encoding="utf-8")
+
+
 def apply_overlay(source):
     app = source / "src/app/Husk"
     project = source / "src/app/project.yml"
@@ -56,7 +81,7 @@ def apply_overlay(source):
     data = plistlib.loads(info.read_bytes())
     data.update(
         CFBundleDisplayName="Samuel VR Box",
-        NSCameraUsageDescription="A câmera traseira rastreia a cabeça e a mão para controlar a bancada VR.",
+        NSCameraUsageDescription="A câmera traseira rastreia a cabeça e a mão e mostra o ambiente quando você liga a visão da câmera.",
     )
     info.write_bytes(plistlib.dumps(data, sort_keys=False))
 
@@ -115,6 +140,7 @@ def main():
     options = parser.parse_args()
     seed_release(options.husk_source, options.husk_release_ipa)
     apply_overlay(options.husk_source)
+    normalize_stikjit_interfaces(options.husk_source)
 
 
 if __name__ == "__main__":
