@@ -22,7 +22,8 @@ def apply(source: Path) -> None:
     }
     jobj *o = tl_jni_new_string("");
     if (!o) return NULL;
-    char *utf8 = u16_to_utf8(n ? s : (const uint16_t *)L"", n);
+    static const uint16_t empty[1] = {0};
+    char *utf8 = u16_to_utf8(n ? s : empty, n);
     uint16_t *copy = malloc((size_t)(n ? n : 1) * sizeof(uint16_t));
     if (!utf8 || !copy) {
         free(utf8);
