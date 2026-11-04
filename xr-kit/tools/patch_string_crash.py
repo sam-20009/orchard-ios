@@ -69,3 +69,9 @@ def apply(source: Path) -> None:
     text = natives.read_text()
     if text.count(old) != 1: raise RuntimeError("Native substring anchor changed")
     natives.write_text(text.replace(old, new, 1))
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) != 2:
+        raise SystemExit("usage: patch_string_crash.py HUSK_SOURCE")
+    apply(Path(sys.argv[1]))
