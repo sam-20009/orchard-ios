@@ -7,12 +7,14 @@ Base Android: [Husk 3.2.1](https://github.com/Leviidev/Husk/releases/tag/3.2.1),
 1. Gere **Samuel-VRBox.ipa** pelo GitHub Actions ou, em um Mac com Xcode e SDK do iPhone, rode `bash tools/build_ipa.sh`. O fluxo ad-hoc gera um arquivo para reassinar com seu perfil de desenvolvimento. Mantenha a extensão **HuskJITHelper** durante a instalação.
 2. Abra **Settings → JIT & sideload → Set up JIT**. Escolha **Use a pairing file** e selecione o arquivo no iPhone. Em iOS 27, o assistente também oferece o pareamento no próprio telefone. O arquivo fica no dispositivo. Use o LocalDevVPN e complete a verificação do Developer Disk Image quando o assistente pedir.
 3. Toque em **Enable JIT** no primeiro ajuste. Depois do pareamento, o app tenta ativar JIT na abertura usando o assistente embutido. O sistema precisa permitir a depuração no perfil de assinatura.
-4. Abra a aba **VR Box**. Ajuste a distância entre os olhos e a distância do painel. Deixe a câmera traseira livre e abra o visor. A pinça no fundo move o painel. A pinça no canto verde muda seu tamanho. Botões são ativados ao soltar a pinça sobre o mesmo alvo. O painel tem atalhos para alternar modos, centralizar, desfazer, consultar a ajuda, abrir a biblioteca ou sair. Com controle Bluetooth, **Y** alterna entre mãos e controle, **A** confirma ou segura, **X** muda a ação, **B** recentraliza, **LB** alterna a câmera e **Menu** fecha.
+4. Abra a aba **VR Box**. Ajuste a distância entre os olhos e a distância do painel. Deixe a câmera traseira livre e abra o visor. A pinça no fundo move o painel. A pinça no canto verde muda seu tamanho. Botões são ativados ao soltar a pinça sobre o mesmo alvo. O painel tem atalhos para alternar modos, centralizar, desfazer, consultar a ajuda, abrir a biblioteca ou sair. Com controle Bluetooth, **Y** alterna entre mãos e controle, **A** confirma ou segura, **X** muda a ação, **B** recentraliza, **LB** alterna a câmera, **RB** oculta ou mostra o painel e **Menu** fecha.
 5. Volte à biblioteca para importar os seus apps Android. A bancada nativa e a biblioteca Android são separadas. A bancada tem visão para os dois olhos e rastreamento ARKit, sem correção óptica específica para modelos de lente.
 
 ## Visão do ambiente
 
-No visor, escolha **Câmera** ou pressione **LB** no controle para ver a câmera traseira atrás do painel. A opção **Mostrar ambiente ao abrir o visor** salva sua preferência. Quando o vídeo para, o visor descarta a imagem antiga e indica que está esperando quadros novos. O vídeo fica no iPhone.
+A câmera traseira abre automaticamente por padrão e o painel acompanha a cabeça. O botão **Câmera** ou **LB** alterna o vídeo. Segure a palma aberta diante da câmera por cerca de um segundo ou pressione **RB** para alternar entre painel e só o ambiente. Abaixe ou feche a mão antes de repetir o gesto. Também é possível tocar na tela para restaurar o painel.
+
+O visor espera uma imagem ao vivo antes de esconder o painel. Se o vídeo para, a imagem antiga é descartada e o painel reaparece. O vídeo fica no iPhone.
 
 A imagem da câmera é monocular e aparece nos dois olhos. Ela não substitui visão periférica, percepção de profundidade ou detecção de obstáculos. Teste o visor parado, de preferência sentado.
 

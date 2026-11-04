@@ -18,7 +18,7 @@ struct VRBoxLabTab: View {
     @AppStorage("vrbox.highContrast") private var highContrast = false
     @AppStorage("vrbox.lightMode") private var lightMode = true
     @AppStorage("vrbox.seated") private var seated = true
-    @AppStorage("vrbox.cameraOnEntry") private var cameraOnEntry = false
+    @AppStorage("vrbox.cameraOnEntry") private var cameraOnEntry = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -42,6 +42,7 @@ struct VRBoxLabTab: View {
                 }
                 Section("Como controlar") {
                     Text("Agarre o painel com uma pinça no fundo ou use o canto verde para redimensionar. Para ativar um botão, solte a pinça sobre ele.")
+                    Text("Mantenha a mão aberta diante da câmera por um instante ou aperte RB para esconder ou mostrar o painel.")
                     Text("No controle, Y alterna o modo, A confirma ou segura, X muda a ação, B recentraliza, LB alterna a câmera e Menu fecha.")
                 }
                 Section("Câmera e biblioteca") {
@@ -105,11 +106,16 @@ private final class VRBoxController: UIViewController {
     private let virtualBackground = UIColor(red: 0.025, green: 0.038, blue: 0.077, alpha: 1)
     private weak var firstEye: SCNView?
     private var showCamera = false
+    private var wantsEnvironmentOnly = false
+    private var palmToggle = VRBoxPalmToggle()
+    private weak var toolbar: UIStackView?
+    private let revealButton = UIButton(type: .custom)
     private var cameraEpoch = 0
     private var cameraViewport: CGSize?
     private var lastCameraFrame: Double?
     private let head = SCNNode()
     private let menuSpace = SCNNode()
+    private let referenceSpace = SCNNode()
     private let panel = SCNNode(geometry: SCNPlane(width: CGFloat(VRBoxMenu.width), height: CGFloat(VRBoxMenu.height)))
     private let cursor = SCNNode(geometry: SCNSphere(radius: 0.005))
     private var panelDepth: Float { -options.distance }
@@ -130,7 +136,7 @@ private final class VRBoxController: UIViewController {
     private enum Handle { case move, resize }
     private var mode = Mode.hand
     private var controllerHandle = Handle.move
-    private var gamepadButtons = [false, false, false, false, false]
+    private var gamepadButtons: [Bool]?
     private var gamepadNeedsRelease = true
 
     private struct Hold {
@@ -168,7 +174,8 @@ private final class VRBoxController: UIViewController {
         scene.background.minificationFilter = .linear
         scene.background.magnificationFilter = .linear
         scene.rootNode.addChildNode(head)
-        scene.rootNode.addChildNode(menuSpace)
+        head.addChildNode(menuSpace)
+        scene.rootNode.addChildNode(referenceSpace)
         menuSpace.addChildNode(panel)
         menuSpace.addChildNode(cursor)
         panel.simdPosition.z = panelDepth
@@ -198,8 +205,10 @@ private final class VRBoxController: UIViewController {
             button("Mãos / controle", #selector(toggleMode)),
             button("Centralizar", #selector(recenter)),
             button("Câmera", #selector(toggleCamera)),
+            button("Ocultar painel", #selector(togglePanel)),
             button("Sair", #selector(leave)),
         ])
+        toolbar = buttons
         buttons.spacing = 12
         buttons.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(buttons)
@@ -208,9 +217,21 @@ private final class VRBoxController: UIViewController {
             buttons.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
         ])
 
+        revealButton.isHidden = true
+        revealButton.accessibilityLabel = "Mostrar painel"
+        revealButton.addTarget(self, action: #selector(togglePanel), for: .touchUpInside)
+        revealButton.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(revealButton)
+        NSLayoutConstraint.activate([
+            revealButton.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            revealButton.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            revealButton.topAnchor.constraint(equalTo: view.topAnchor),
+            revealButton.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+
         updateTexture()
         tracking.onPose = { [weak self] pose, quality in self?.applyHead(pose, quality: quality) }
-        tracking.onHand = { [weak self] sample in self?.applyHand(sample) }
+        tracking.onHand = { [weak self] sample, time in self?.applyHand(sample, capturedAt: time) }
         tracking.onQuality = { [weak self] quality in self?.updateQuality(quality) }
         tracking.onPreview = { [weak self] image, epoch, capturedAt in
             self?.applyCameraFrame(image, epoch: epoch, capturedAt: capturedAt)
@@ -226,10 +247,13 @@ private final class VRBoxController: UIViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         active = true
+        wantsEnvironmentOnly = false
+        palmToggle = VRBoxPalmToggle()
         HuskOrientation.set(.landscapeRight)
         tracking.start()
         showCamera = options.cameraOnEntry
         updateCameraViewport()
+        updatePanelPresentation()
         updateTexture()
         let link = CADisplayLink(target: self, selector: #selector(tick))
         link.preferredFramesPerSecond = 30
@@ -259,7 +283,7 @@ private final class VRBoxController: UIViewController {
                 dot.geometry?.firstMaterial?.lightingModel = .constant
                 dot.geometry?.firstMaterial?.diffuse.contents = UIColor.systemIndigo
                 dot.position = SCNVector3(Float(column) * 0.22, Float(row) * 0.22, -1.6)
-                menuSpace.addChildNode(dot)
+                referenceSpace.addChildNode(dot)
             }
         }
     }
@@ -292,8 +316,32 @@ private final class VRBoxController: UIViewController {
 
     @objc private func toggleCamera() {
         showCamera.toggle()
+        if !showCamera { wantsEnvironmentOnly = false }
         updateCameraViewport()
+        updatePanelPresentation()
         updateTexture()
+    }
+
+    @objc private func togglePanel() {
+        wantsEnvironmentOnly.toggle()
+        if wantsEnvironmentOnly && !showCamera {
+            showCamera = true
+            updateCameraViewport()
+        }
+        updatePanelPresentation()
+        updateTexture()
+    }
+
+    private func updatePanelPresentation() {
+        // Keep controls visible until a fresh camera frame is available.
+        let hidden = wantsEnvironmentOnly && lastCameraFrame != nil
+        if panel.isHidden != hidden {
+            panel.isHidden = hidden
+            toolbar?.isHidden = hidden
+            revealButton.isHidden = !hidden
+            resetInput()
+        }
+        referenceSpace.isHidden = showCamera
     }
 
     private func updateCameraViewport() {
@@ -306,6 +354,7 @@ private final class VRBoxController: UIViewController {
         lastCameraFrame = nil
         scene.background.contents = virtualBackground
         tracking.setPreviewViewport(size, epoch: cameraEpoch)
+        updatePanelPresentation()
     }
 
     private func applyCameraFrame(_ image: CGImage, epoch: Int, capturedAt: Double) {
@@ -314,7 +363,10 @@ private final class VRBoxController: UIViewController {
         let wasWaiting = lastCameraFrame == nil
         lastCameraFrame = capturedAt
         scene.background.contents = image
-        if wasWaiting { updateTexture() }
+        if wasWaiting {
+            updatePanelPresentation()
+            updateTexture()
+        }
     }
 
     @objc private func recenter() {
@@ -325,7 +377,6 @@ private final class VRBoxController: UIViewController {
     @objc private func toggleMode() {
         mode = mode == .hand ? .controller : .hand
         hasHand = false
-        tracking.setHandEnabled(mode == .hand)
         resetInput()
         updateTexture()
     }
@@ -354,7 +405,7 @@ private final class VRBoxController: UIViewController {
         }
         let hint: String
         if help {
-            hint = mode == .hand ? "Pinça no fundo move · pinça no canto ajusta" : "A confirma ou segura · B centraliza"
+            hint = "Palma aberta ou RB: ocultar / mostrar painel"
         } else {
             hint = mode == .hand ? "Aponte, faça pinça e solte para selecionar" :
                 (controllerHandle == .move ? "Analógico move o foco · A segura · X ajusta" : "A segura · analógico ajusta · X volta")
@@ -385,7 +436,7 @@ private final class VRBoxController: UIViewController {
         head.simdTransform = pose
         hasHeadPose = true
         guard needsCenter else { return }
-        menuSpace.simdTransform = pose
+        referenceSpace.simdTransform = pose
         let y: Float = options.seated ? -0.045 : 0
         panel.simdPosition = SIMD3<Float>(0, y, panelDepth)
         controllerAim = SIMD2<Float>(0, y)
@@ -416,16 +467,22 @@ private final class VRBoxController: UIViewController {
         updateTexture()
     }
 
-    private func applyHand(_ sample: VRBoxHandSample?) {
-        guard active, hasHeadPose, quality == .normal, mode == .hand else { return }
-        guard let sample = sample else { return }
-        let inverse = simd_inverse(menuSpace.simdWorldTransform)
-        let origin = inverse * sample.origin
-        let ray = inverse * sample.ray
+    private func applyHand(_ sample: VRBoxHandSample?, capturedAt: Double) {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard active, now - capturedAt < 0.25 else { return }
+        if palmToggle.update(open: sample?.openPalm, at: capturedAt) {
+            togglePanel()
+            return
+        }
+        guard hasHeadPose, quality == .normal, mode == .hand, !panel.isHidden,
+            let sample = sample else { return }
+        // The ray was captured in the same head coordinate system as the panel.
+        let origin = sample.origin
+        let ray = sample.ray
         guard ray.z < -0.05 else { return }
         let distance = (panelDepth - origin.z) / ray.z
         guard distance > 0, distance < 3 else { return }
-        lastHand = ProcessInfo.processInfo.systemUptime
+        lastHand = now
         if !hasHand {
             hasHand = true
             updateTexture()
@@ -440,7 +497,9 @@ private final class VRBoxController: UIViewController {
         guard active else { return }
         if let capturedAt = lastCameraFrame, ProcessInfo.processInfo.systemUptime - capturedAt > 0.35 {
             lastCameraFrame = nil
+            wantsEnvironmentOnly = false
             scene.background.contents = virtualBackground
+            updatePanelPresentation()
             updateTexture()
         }
         if mode == .hand, hasHand, ProcessInfo.processInfo.systemUptime - lastHand > 0.30 {
@@ -455,12 +514,12 @@ private final class VRBoxController: UIViewController {
         }
         guard let pad = pad else {
             if mode == .controller { resetInput() }
-            gamepadButtons = [false, false, false, false, false]
+            gamepadButtons = nil
             return
         }
         let buttons = [pad.buttonY.isPressed, pad.buttonX.isPressed, pad.buttonB.isPressed,
-            pad.buttonMenu.isPressed, pad.leftShoulder.isPressed]
-        let rising = zip(buttons, gamepadButtons).map { $0.0 && !$0.1 }
+            pad.buttonMenu.isPressed, pad.leftShoulder.isPressed, pad.rightShoulder.isPressed]
+        let rising = zip(buttons, gamepadButtons ?? buttons).map { $0.0 && !$0.1 }
         gamepadButtons = buttons
         if rising[0] { toggleMode() }
         if rising[1], hold == nil {
@@ -470,7 +529,8 @@ private final class VRBoxController: UIViewController {
         if rising[2] { recenter() }
         if rising[3] { leave(); return }
         if rising[4] { toggleCamera() }
-        guard mode == .controller, hasHeadPose, quality == .normal else { return }
+        if rising[5] { togglePanel(); return }
+        guard mode == .controller, hasHeadPose, quality == .normal, !panel.isHidden else { return }
         let pressing = pad.buttonA.isPressed
         if !pressing { gamepadNeedsRelease = false }
         let stick = SIMD2<Float>(pad.leftThumbstick.xAxis.value, pad.leftThumbstick.yAxis.value)
@@ -550,6 +610,7 @@ private struct VRBoxHandSample {
     let origin: SIMD4<Float>
     let ray: SIMD4<Float>
     let gap: Float
+    let openPalm: Bool
 }
 
 private final class VRBoxTracking: NSObject, ARSessionDelegate {
@@ -565,7 +626,6 @@ private final class VRBoxTracking: NSObject, ARSessionDelegate {
     // These fields are read and written only on frameQueue.
     private var lastHandRequest = -Double.infinity
     private var handRequestRunning = false
-    private var handEnabled = true
     private var previewViewport: CGSize?
     private var previewEpoch = 0
     private var previewBusy = false
@@ -573,7 +633,7 @@ private final class VRBoxTracking: NSObject, ARSessionDelegate {
 
     var onPose: ((simd_float4x4, VRBoxTrackingQuality) -> Void)?
     var onQuality: ((VRBoxTrackingQuality) -> Void)?
-    var onHand: ((VRBoxHandSample?) -> Void)?
+    var onHand: ((VRBoxHandSample?, Double) -> Void)?
     var onFailure: ((Error) -> Void)?
     var onPreview: ((CGImage, Int, Double) -> Void)?
 
@@ -585,10 +645,6 @@ private final class VRBoxTracking: NSObject, ARSessionDelegate {
         tracking.delegate = self
         tracking.delegateQueue = frameQueue
         handRequest.maximumHandCount = 1
-    }
-
-    func setHandEnabled(_ enabled: Bool) {
-        frameQueue.async { self.handEnabled = enabled }
     }
 
     func setPreviewViewport(_ size: CGSize?, epoch: Int) {
@@ -612,7 +668,8 @@ private final class VRBoxTracking: NSObject, ARSessionDelegate {
     func pause() { tracking.pause() }
 
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
-        let displayPose = simd_inverse(frame.camera.viewMatrix(for: .landscapeRight))
+        let worldToHead = frame.camera.viewMatrix(for: .landscapeRight)
+        let displayPose = simd_inverse(worldToHead)
         let quality: VRBoxTrackingQuality
         switch frame.camera.trackingState {
         case .normal: quality = .normal
@@ -627,17 +684,18 @@ private final class VRBoxTracking: NSObject, ARSessionDelegate {
         DispatchQueue.main.async { [weak self] in self?.onPose?(displayPose, quality) }
         publishPreview(from: frame)
 
-        guard quality == .normal, handEnabled, !handRequestRunning, frame.timestamp - lastHandRequest >= handInterval else { return }
+        guard !handRequestRunning, frame.timestamp - lastHandRequest >= handInterval else { return }
         lastHandRequest = frame.timestamp
         handRequestRunning = true
         let image = frame.capturedImage
         let intrinsics = frame.camera.intrinsics
-        let rawPose = frame.camera.transform
+        let cameraToHead = worldToHead * frame.camera.transform
+        let capturedAt = ProcessInfo.processInfo.systemUptime
         visionQueue.async { [weak self] in
             guard let self = self else { return }
-            let sample = self.readHand(image, intrinsics: intrinsics, pose: rawPose)
+            let sample = self.readHand(image, intrinsics: intrinsics, cameraToHead: cameraToHead)
             self.frameQueue.async { self.handRequestRunning = false }
-            DispatchQueue.main.async { [weak self] in self?.onHand?(sample) }
+            DispatchQueue.main.async { [weak self] in self?.onHand?(sample, capturedAt) }
         }
     }
 
@@ -670,7 +728,8 @@ private final class VRBoxTracking: NSObject, ARSessionDelegate {
         DispatchQueue.main.async { [weak self] in self?.onFailure?(error) }
     }
 
-    private func readHand(_ image: CVPixelBuffer, intrinsics: simd_float3x3, pose: simd_float4x4) -> VRBoxHandSample? {
+    private func readHand(_ image: CVPixelBuffer, intrinsics: simd_float3x3,
+        cameraToHead: simd_float4x4) -> VRBoxHandSample? {
         do {
             try VNImageRequestHandler(cvPixelBuffer: image, orientation: .up, options: [:]).perform([handRequest])
             guard let hand = handRequest.results?.first else { return nil }
@@ -689,8 +748,18 @@ private final class VRBoxTracking: NSObject, ARSessionDelegate {
             let tips = (pixels(index) + pixels(thumb)) * 0.5
             let direction = SIMD4<Float>((tips.x - intrinsics.columns.2.x) / intrinsics.columns.0.x,
                 -(tips.y - intrinsics.columns.2.y) / intrinsics.columns.1.y, -1, 0)
-            return VRBoxHandSample(origin: pose.columns.3, ray: pose * direction,
-                gap: simd_distance(pixels(index), pixels(thumb)) / palm)
+            let gap = simd_distance(pixels(index), pixels(thumb)) / palm
+            let fingerJoints: [(VNHumanHandPoseObservation.JointName, VNHumanHandPoseObservation.JointName)] = [
+                (.indexTip, .indexPIP), (.middleTip, .middlePIP), (.ringTip, .ringPIP), (.littleTip, .littlePIP),
+            ]
+            let wristPoint = pixels(wrist)
+            let openPalm = gap > 0.55 && fingerJoints.allSatisfy { pair in
+                guard let tip = try? hand.recognizedPoint(pair.0), tip.confidence >= 0.50,
+                    let pip = try? hand.recognizedPoint(pair.1), pip.confidence >= 0.50 else { return false }
+                return simd_distance(pixels(tip), wristPoint) - simd_distance(pixels(pip), wristPoint) > 0.25 * palm
+            }
+            return VRBoxHandSample(origin: cameraToHead.columns.3, ray: cameraToHead * direction,
+                gap: gap, openPalm: openPalm)
         } catch {
             return nil
         }
