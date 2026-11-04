@@ -44,5 +44,15 @@ with zipfile.ZipFile(sys.argv[1]) as ipa:
     assert info["CFBundleIdentifier"] == "com.samuel.vrbox", info["CFBundleIdentifier"]
     assert info["UIDeviceFamily"] == [1], info["UIDeviceFamily"]
     assert info["NSCameraUsageDescription"]
-    assert root + "PlugIns/HuskJITHelper.appex/Info.plist" in ipa.namelist()
+    for resource in (
+        "PlugIns/HuskJITHelper.appex/Info.plist",
+        "edk2-aarch64-code.fd",
+        "lineage-efi-vars-seed.fd",
+        "lineage-vdb-seed.qcow2",
+        "vmlinuz-virt",
+        "initramfs-virt",
+        "Frameworks/libqemu-aarch64-softmmu.dylib",
+        "Frameworks/libANGLE-shared.dylib",
+    ):
+        assert ipa.getinfo(root + resource).file_size > 0, resource
 PY

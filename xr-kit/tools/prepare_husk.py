@@ -10,6 +10,7 @@ from pathlib import Path
 
 KIT = Path(__file__).resolve().parents[1]
 RELEASE_SHA256 = "5c39d7dc2d90d75c2df03900cda7f240271a90b7d89fff504df7fa4da49e9d3f"
+IMAGE_SHA256 = "a8dbaecc8fdcd682991b078d6bbb7df6972e459208634fa8dcbad24f17208d6a"
 
 
 def replace_once(path, old, new):
@@ -44,6 +45,52 @@ def normalize_stikjit_interfaces(source):
         path.write_text(updated, encoding="utf-8")
 
 
+def apply_automatic_setup(app):
+    content = app / "ContentView.swift"
+    replace_once(content, "    @State private var started = false\n",
+        '    @AppStorage("samuel.didStartAndroidSetup") private var didStartAndroidSetup = false\n'
+        '    @State private var started = false\n')
+    replace_once(content, "        try? guest.prepareFirmware()\n        guest.refresh()\n",
+        '''        let firmwareReady = (try? guest.prepareFirmware()) != nil
+        guest.refresh()
+        // Remember the first attempt so foregrounding the app never overrides Cancel.
+        if firmwareReady, !didStartAndroidSetup, guest.state == .missing {
+            didStartAndroidSetup = true
+            guest.download()
+        }
+''')
+
+    image = app / "GuestImage.swift"
+    replace_once(image, '    static let imageVersion = "v12"\n',
+        f'    static let imageVersion = "v12"\n    static let imageSHA256 = "{IMAGE_SHA256}"\n')
+    replace_once(image, r'        HuskLog.log("guest", "downloading guest image from \(Self.imageURL.absoluteString)")',
+        r'''        let url = manifest?.imageURL ?? Self.imageURL
+        let expectedDigest = manifest?.image.sha256 ?? Self.imageSHA256
+        HuskLog.log("guest", "downloading guest image from \(url.absoluteString)")''')
+    replace_once(image, "DownloadDelegate(owner: self)", "DownloadDelegate(owner: self, expectedDigest: expectedDigest)")
+    replace_once(image, "session.downloadTask(with: manifest?.imageURL ?? Self.imageURL)", "session.downloadTask(with: url)")
+    replace_once(image, "func finished(tempURL: URL, digest: String?)",
+        "func finished(tempURL: URL, digest: String?, expectedDigest: String)")
+    replace_once(image, "        if let want = manifest?.image.sha256, let got = digest, want != got {\n",
+        '        if digest != expectedDigest {\n'
+        '            let got = digest ?? "unavailable"\n'
+        '            let want = expectedDigest\n')
+    replace_once(image, "    init(owner: GuestImage) { self.owner = owner }",
+        '''    let expectedDigest: String
+
+    init(owner: GuestImage, expectedDigest: String) {
+        self.owner = owner
+        self.expectedDigest = expectedDigest
+    }''')
+    replace_once(image, "        Task { @MainActor in self.owner?.finished(tempURL: stable, digest: digest) }",
+        '''        Task { @MainActor in
+            self.owner?.finished(tempURL: stable, digest: digest, expectedDigest: self.expectedDigest)
+        }''')
+    replace_once(app / "ItemPages.swift",
+        "Husk's Android runtime is about 760 MB. Android itself follows once it is installed.",
+        "The Android system download is about 2.1 GB. Keep Samuel VR Box open while it downloads.")
+
+
 def apply_overlay(source):
     app = source / "src/app/Husk"
     project = source / "src/app/project.yml"
@@ -52,6 +99,7 @@ def apply_overlay(source):
     text = project.read_text(encoding="utf-8")
     project.write_text(text.replace('TARGETED_DEVICE_FAMILY: "1,2"', 'TARGETED_DEVICE_FAMILY: "1"'), encoding="utf-8")
 
+    apply_automatic_setup(app)
     replace_once(app / "ContentView.swift", "                SettingsTab()\n",
         '''                VRBoxLabTab()
                     .tabItem { Label("VR Box", systemImage: "eyeglasses") }
