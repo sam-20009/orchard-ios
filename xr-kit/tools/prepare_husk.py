@@ -194,6 +194,12 @@ def apply_overlay(source):
     text = project.read_text(encoding="utf-8")
     project.write_text(text.replace('TARGETED_DEVICE_FAMILY: "1,2"', 'TARGETED_DEVICE_FAMILY: "1"'), encoding="utf-8")
 
+    # Patch the pinned native Android translation runtime before compilation.
+    import subprocess
+    import sys
+    subprocess.run([sys.executable, str(KIT / "tools/patch_string_crash.py"),
+                    str(source)], check=True)
+
     make_source_compatible_with_swift_62(app)
     apply_automatic_setup(app)
     apply_jit_fixes(app)
