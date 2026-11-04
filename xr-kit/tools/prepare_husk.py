@@ -9,7 +9,7 @@ import zipfile
 from pathlib import Path
 
 KIT = Path(__file__).resolve().parents[1]
-RELEASE_SHA256 = "5c39d7dc2d90d75c2df03900cda7f240271a90b7d89fff504df7fa4da49e9d3f"
+RELEASE_SHA256 = "47cdbac8ba310886bdd74d148ea411298e5cf0dd7bedc7f93d6da810681f695f"
 IMAGE_SHA256 = "a8dbaecc8fdcd682991b078d6bbb7df6972e459208634fa8dcbad24f17208d6a"
 
 
@@ -121,6 +121,71 @@ def apply_automatic_setup(app):
         "The Android system download is about 2.1 GB. Keep Samuel VR Box open while it downloads.")
 
 
+def apply_jit_fixes(app):
+    setup = app / "JITSetup.swift"
+    replace_once(setup, "    func enableAtLaunchIfAsked() {\n",
+        "    func enableAtLaunchIfAsked() {\n"
+        "        guard !JITLess.enabled else { return }\n")
+    replace_once(setup, "        guard !JITBootstrap.ready else { return }\n"
+        "        guard HuskBuiltInJIT.isAvailable, hasPairing else {\n",
+        "        guard !JITBootstrap.ready else { return }\n"
+        "        guard resolvedMethod == .builtIn, HuskBuiltInJIT.isAvailable, hasPairing else {\n")
+    replace_once(setup, '        log("turning JIT on at launch with built-in StikJIT")\n        method = .builtIn\n',
+        '        log("turning JIT on at launch with built-in StikJIT")\n')
+    replace_once(setup, "        connectionProblem = nil\n        switch resolvedMethod {\n",
+        '''        connectionProblem = nil
+        if (resolvedMethod == .builtIn || resolvedMethod == .stikDebug),
+           JITBootstrap.canAttachDebugger == false {
+            status = nil
+            error = "This installation does not allow debugging (get-task-allow). "
+                  + "Re-sign Samuel VR Box with a development profile and keep its app extensions."
+            log("JIT blocked: installed profile does not allow debugging")
+            return
+        }
+        switch resolvedMethod {
+''')
+    replace_once(app / "JITBootstrap.swift", "    private static func csStatus() -> UInt32? {\n",
+        '''    static var canAttachDebugger: Bool? {
+        // CS_GET_TASK_ALLOW is the kernel flag for the installed debug entitlement.
+        csStatus().map { ($0 & 0x00000004) != 0 }
+    }
+
+    private static func csStatus() -> UInt32? {
+''')
+
+    # Discovery waits synchronously on its worker; Network callbacks must run elsewhere.
+    replace_once(setup, '    private static let queue = DispatchQueue(label: "com.husk.app.remotepairing-discovery", qos: .utility)\n',
+        '    private static let queue = DispatchQueue(label: "com.samuel.vrbox.remotepairing-discovery", qos: .utility)\n'
+        '    private static let callbackQueue = DispatchQueue(label: "com.samuel.vrbox.remotepairing-callbacks", qos: .utility)\n')
+    replace_once(setup, "connection.start(queue: queue)", "connection.start(queue: callbackQueue)")
+    replace_once(setup, "browser.start(queue: queue)", "browser.start(queue: callbackQueue)")
+
+    # Return to this mod even when the upstream Husk also owns the husk URL scheme.
+    replace_once(setup, "localdevvpn://enable?scheme=husk", "localdevvpn://enable?scheme=samuelvrbox")
+    replace_once(app / "SigningCertificate.swift", 'private static let callbackScheme = "husk"',
+        'private static let callbackScheme = "samuelvrbox"')
+
+    replace_once(app / "JITLess.swift", "        guard enabled else { return }\n        setenv(",
+        '''        guard enabled else {
+            unsetenv("TL_NO_XMEM")
+            tl_ld_set_aot_dir(nil)
+            return
+        }
+        setenv(''')
+    replace_once(app / "ItemPages.swift",
+        "    private func play() {\n        if JITLess.enabled, SigningCertificate.credentials() != nil, preparing == nil {\n",
+        '''    private func play() {
+        guard preparing == nil else { return }
+        if JITLess.enabled, SigningCertificate.credentials() == nil, JITLess.libraryCount == 0 {
+            prepareFailed = "To play without JIT, open Settings → Play without JIT and import the "
+                          + "development certificate used to sign Samuel VR Box. "
+                          + "To use JIT instead, turn off Play without JIT."
+            return
+        }
+        if JITLess.enabled, SigningCertificate.credentials() != nil {
+''')
+
+
 def apply_overlay(source):
     app = source / "src/app/Husk"
     project = source / "src/app/project.yml"
@@ -131,6 +196,7 @@ def apply_overlay(source):
 
     make_source_compatible_with_swift_62(app)
     apply_automatic_setup(app)
+    apply_jit_fixes(app)
     replace_once(app / "ContentView.swift", "                SettingsTab()\n",
         '''                VRBoxLabTab()
                     .tabItem { Label("VR Box", systemImage: "eyeglasses") }
@@ -147,17 +213,18 @@ def apply_overlay(source):
     enum_decl = next(line for line in text.splitlines() if "enum HuskTab:" in line)
     replace_once(enum_file, enum_decl, enum_decl + "\n    case vrbox")
 
-    # Keep the upstream first-run file picker and helper. Enable its existing
-    # auto-enable path by default, after the user completes pairing and VPN setup.
     replace_once(app / "HuskApp.swift", "        let d = UserDefaults.standard\n",
         '        let d = UserDefaults.standard\n'
-        '        d.register(defaults: ["husk.jit.autoEnable": true, "husk.downloadSnapshot": false])\n')
+        '        d.register(defaults: ["husk.downloadSnapshot": false])\n')
     for overlay in sorted((KIT / "overlay").glob("VRBox*.swift")):
         shutil.copy2(overlay, app / overlay.name)
 
     # Keep build-setting placeholders used by Xcode (including extension IDs).
     info = app / "Info.plist"
     data = plistlib.loads(info.read_bytes())
+    for entry in data["CFBundleURLTypes"]:
+        if "husk" in entry["CFBundleURLSchemes"]:
+            entry["CFBundleURLSchemes"].append("samuelvrbox")
     data.update(
         CFBundleDisplayName="Samuel VR Box",
         NSCameraUsageDescription="A câmera traseira rastreia a cabeça e a mão e mostra o ambiente quando você liga a visão da câmera.",
@@ -175,7 +242,7 @@ def sha256_file(path):
 
 def seed_release(source, ipa):
     if sha256_file(ipa) != RELEASE_SHA256:
-        raise ValueError("Husk 3.2.1 IPA does not match the pinned SHA-256")
+        raise ValueError("Husk 3.3 IPA does not match the pinned SHA-256")
     with zipfile.ZipFile(ipa) as archive:
         prefix = "Payload/Husk.app/"
         names = archive.namelist()

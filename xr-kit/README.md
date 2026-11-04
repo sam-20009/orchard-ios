@@ -1,13 +1,13 @@
 # Samuel VR Box — versão experimental
 
-Base Android: [Husk 3.2.1](https://github.com/Leviidev/Husk/releases/tag/3.2.1), GPL-2.0-or-later. Este projeto baixa o código correspondente e verifica o SHA-256 do IPA oficial antes de reutilizar as dependências da mesma versão. Preserva o assistente, o serviço auxiliar de JIT, a biblioteca Android e os créditos originais.
+Base Android: [Husk 3.3](https://github.com/Leviidev/Husk/releases/tag/3.3), GPL-2.0-or-later. Este projeto baixa o código correspondente e verifica o SHA-256 do IPA oficial antes de reutilizar as dependências da mesma versão. Preserva o assistente, o serviço auxiliar de JIT, a biblioteca Android e os créditos originais.
 
 ## Usar no iPhone
 
 1. Gere **Samuel-VRBox.ipa** pelo GitHub Actions ou, em um Mac com Xcode e SDK do iPhone, rode `bash tools/build_ipa.sh`. O fluxo ad-hoc gera um arquivo para reassinar com seu perfil de desenvolvimento. Mantenha a extensão **HuskJITHelper** durante a instalação.
 2. Na primeira abertura, mantenha o app aberto para baixar e verificar automaticamente o Android (cerca de 2,1 GB). Em **Home → Android**, acompanhe o progresso, cancele ou tente novamente se precisar.
 3. Abra **Settings → JIT & sideload → Set up JIT**. Escolha **Use a pairing file** e selecione o arquivo no iPhone. Em iOS 27, o assistente também oferece o pareamento no próprio telefone. O arquivo fica no dispositivo. Use o LocalDevVPN e complete a verificação do Developer Disk Image quando o assistente pedir.
-4. Toque em **Enable JIT** no primeiro ajuste. Depois do pareamento, o app tenta ativar JIT na abertura usando o assistente embutido. O sistema precisa permitir a depuração no perfil de assinatura.
+4. Toque em **Enable JIT** no primeiro ajuste. Se quiser ativar automaticamente depois do pareamento, selecione **Built-in StikJIT** e ligue **Turn On JIT at Launch**. A ativação automática respeita o método escolhido. Para usar a camada de tradução sem JIT, abra **Settings → Play without JIT** e importe o certificado de desenvolvimento usado para instalar o app. Esse modo converte as bibliotecas do APK e do runtime Java. A VM Android ainda exige JIT.
 5. Abra a aba **VR Box**. Ajuste a distância entre os olhos e a distância do painel. Deixe a câmera traseira livre e abra o visor. A pinça no fundo move o painel. A pinça no canto verde muda seu tamanho. Botões são ativados ao soltar a pinça sobre o mesmo alvo. O painel tem atalhos para alternar modos, centralizar, desfazer, consultar a ajuda, abrir a biblioteca ou sair. Com controle Bluetooth, **Y** alterna entre mãos e controle, **A** confirma ou segura, **X** muda a ação, **B** recentraliza, **LB** alterna a câmera, **RB** oculta ou mostra o painel e **Menu** fecha.
 6. Volte à biblioteca para importar os seus apps Android. A bancada nativa e a biblioteca Android são separadas. A bancada tem visão para os dois olhos e rastreamento ARKit, sem correção óptica específica para modelos de lente.
 

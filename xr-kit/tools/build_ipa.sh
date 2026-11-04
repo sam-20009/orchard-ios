@@ -14,7 +14,7 @@ kit_dir="$(cd "$(dirname "$0")/.." && pwd)"
 mkdir -p "$kit_dir/dist"
 work_dir="$(mktemp -d)"
 trap 'rm -rf "$work_dir"' EXIT
-husk_commit=d30e12ec8184182ef2adccd5ee86290dcfe47312
+husk_commit=6e7f32572f19e7085686d5dd71ca58c02b725177
 husk_checkout="$work_dir/husk"
 ipa="$work_dir/Husk.ipa"
 
@@ -23,7 +23,7 @@ git -C "$husk_checkout" fetch --depth=1 https://github.com/Leviidev/Husk.git "$h
 git -C "$husk_checkout" checkout --quiet --detach FETCH_HEAD
 test "$(git -C "$husk_checkout" rev-parse HEAD)" = "$husk_commit"
 curl --fail --location --silent --show-error --retry 3 \
-    https://github.com/Leviidev/Husk/releases/download/3.2.1/Husk.ipa -o "$ipa"
+    https://github.com/Leviidev/Husk/releases/download/3.3/Husk.ipa -o "$ipa"
 python3 "$kit_dir/tools/prepare_husk.py" "$husk_checkout" "$ipa"
 
 cd "$husk_checkout"
@@ -42,10 +42,20 @@ with zipfile.ZipFile(sys.argv[1]) as ipa:
     root = "Payload/Husk.app/"
     info = plistlib.loads(ipa.read(root + "Info.plist"))
     assert info["CFBundleIdentifier"] == "com.samuel.vrbox", info["CFBundleIdentifier"]
+    assert info["CFBundleShortVersionString"] == "3.3", info["CFBundleShortVersionString"]
     assert info["UIDeviceFamily"] == [1], info["UIDeviceFamily"]
     assert info["NSCameraUsageDescription"]
+    assert any("samuelvrbox" in entry["CFBundleURLSchemes"] for entry in info["CFBundleURLTypes"])
+    helper = plistlib.loads(ipa.read(root + "PlugIns/HuskJITHelper.appex/Info.plist"))
+    assert helper["CFBundleIdentifier"] == info["CFBundleIdentifier"] + ".JITHelper"
     for resource in (
-        "PlugIns/HuskJITHelper.appex/Info.plist",
+        "PlugIns/HuskJITHelper.appex/HuskJITHelper",
+        "Frameworks/StikJIT.framework/StikJIT",
+        "husk-jit.js",
+        "java-runtime/husk-framework.dex",
+        "java-runtime/com.android.art/lib64/libjavacore.so",
+        "java-runtime/com.android.art/lib64/libopenjdk.so",
+        "java-runtime/com.android.i18n/lib64/libicu_jni.so",
         "edk2-aarch64-code.fd",
         "lineage-efi-vars-seed.fd",
         "lineage-vdb-seed.qcow2",
