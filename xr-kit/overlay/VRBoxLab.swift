@@ -24,6 +24,26 @@ struct VRBoxLabTab: View {
     var body: some View {
         NavigationView {
             Form {
+                Section {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Samuel VR Box", systemImage: "visionpro")
+                            .font(.title2.bold())
+                        Text("Visor experimental para iPhone")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        HStack(spacing: 8) {
+                            Image(systemName: runner.isRunning ? "circle.fill" : "circle.dotted")
+                                .foregroundStyle(runner.isRunning ? Color.green : Color.orange)
+                            Text(runner.isRunning ? "Android em execução" : "Android não iniciado")
+                                .font(.caption.weight(.semibold))
+                        }
+                        Text("A bancada VR usa ARKit e funciona separadamente do Android. Roblox VR ainda requer um runtime OpenXR compatível.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 8)
+                    .accessibilityElement(children: .combine)
+                }
                 Section("Visor") {
                     Button("Abrir menu no VR Box") { showing = true }
                         .disabled(UIDevice.current.userInterfaceIdiom != .phone
