@@ -17,6 +17,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+      - name: Verify native crash patch
+        run: python3 -m unittest discover -s xr-kit/tools -p 'test_string_patch.py' -v
       - name: Prepare Xcode and packager
         run: |
           sudo xcode-select --switch /Applications/Xcode_26.3.app/Contents/Developer
@@ -28,8 +30,15 @@ jobs:
           fi
       - name: Build iPhone IPA
         run: bash xr-kit/tools/build_ipa.sh
+      - name: Verify output archive and checksum
+        run: |
+          test -s xr-kit/dist/Samuel-VRBox.ipa
+          unzip -tq xr-kit/dist/Samuel-VRBox.ipa
+          shasum -a 256 xr-kit/dist/Samuel-VRBox.ipa | tee xr-kit/dist/Samuel-VRBox.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: Samuel-VRBox-IPA
-          path: xr-kit/dist/Samuel-VRBox.ipa
+          path: |
+            xr-kit/dist/Samuel-VRBox.ipa
+            xr-kit/dist/Samuel-VRBox.sha256
           if-no-files-found: error
