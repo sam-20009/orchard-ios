@@ -7,14 +7,18 @@ Base Android: [Husk 3.2.1](https://github.com/Leviidev/Husk/releases/tag/3.2.1),
 1. Gere **Samuel-VRBox.ipa** pelo GitHub Actions ou, em um Mac com Xcode e SDK do iPhone, rode `bash tools/build_ipa.sh`. O fluxo ad-hoc gera um arquivo para reassinar com seu perfil de desenvolvimento. Mantenha a extensão **HuskJITHelper** durante a instalação.
 2. Abra **Settings → JIT & sideload → Set up JIT**. Escolha **Use a pairing file** e selecione o arquivo no iPhone. Em iOS 27, o assistente também oferece o pareamento no próprio telefone. O arquivo fica no dispositivo. Use o LocalDevVPN e complete a verificação do Developer Disk Image quando o assistente pedir.
 3. Toque em **Enable JIT** no primeiro ajuste. Depois do pareamento, o app tenta ativar JIT na abertura usando o assistente embutido. O sistema precisa permitir a depuração no perfil de assinatura.
-4. Abra a aba **VR Box**. Ajuste a distância entre os olhos, deixe a câmera traseira livre e abra a bancada. A pinça no meio move o painel. A pinça no canto verde muda seu tamanho. Com controle Bluetooth, **Y** alterna entre mãos e controle, **A** segura, **X** muda a ação, **B** recentraliza e **Menu** fecha.
+4. Abra a aba **VR Box**. Ajuste a distância entre os olhos e a distância do painel. Deixe a câmera traseira livre e abra o visor. A pinça no fundo move o painel. A pinça no canto verde muda seu tamanho. Botões são ativados ao soltar a pinça sobre o mesmo alvo. O painel tem atalhos para alternar modos, centralizar, desfazer, consultar a ajuda, abrir a biblioteca ou sair. Com controle Bluetooth, **Y** alterna entre mãos e controle, **A** confirma ou segura, **X** muda a ação, **B** recentraliza e **Menu** fecha.
 5. Volte à biblioteca para importar os seus apps Android. A bancada nativa e a biblioteca Android são separadas. A bancada tem visão para os dois olhos e rastreamento ARKit, sem correção óptica específica para modelos de lente.
+
+## Conforto e recuperação
+
+A posição sentada, o contraste, o tamanho do texto, as distâncias e o modo leve ficam salvos no iPhone. O modo leve apresenta cada olho a 30 fps e limita o reconhecimento de mãos. Em caso de rastreamento limitado ou câmera interrompida, o visor indica o motivo e cancela a ação em andamento para evitar seleções acidentais. O visor também respeita a preferência **Reduzir Movimento** do iOS para esconder a grade de referência.
 
 ## Imagens do Android
 
 O modo VM do Husk baixa a [imagem LineageOS ARM64 v12](https://github.com/Leviidev/Husk/releases/download/lineage-v2/vda-v12.qcow2) no próprio app. Ela tem 2.057.568.256 bytes. SHA-256 `a8dbaecc8fdcd682991b078d6bbb7df6972e459208634fa8dcbad24f17208d6a`. O download automático do snapshot de 4 GiB de RAM fica desligado por padrão neste perfil. A escolha de memória adaptativa do Husk permanece ativa.
 
-A imagem [Android XR ARM64 oficial do Google](https://developer.android.com/develop/xr/jetpack-xr-sdk/run/create-avds/xr-headsets-glasses?hl=pt-BR) é um AVD de desenvolvimento para o Android Studio. O Google informa que seu emulador não suporta OpenXR nem Unity. Ela não é o sistema do Quest e não serve como imagem de instalação para rodar Roblox VR neste app.
+A [imagem Android XR ARM64 oficial do Google](https://dl.google.com/android/repository/sys-img/google_xr/xr-preview-arm64-v8a-playstore-34_r04.zip) é um AVD de desenvolvimento para o Android Studio. O Google informa que seu emulador não suporta OpenXR nem Unity. Ela não é o sistema do Quest e não serve como imagem de instalação para rodar Roblox VR neste app.
 
 ## Verificar um APK
 

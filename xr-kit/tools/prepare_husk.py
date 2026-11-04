@@ -48,7 +48,8 @@ def apply_overlay(source):
     replace_once(app / "HuskApp.swift", "        let d = UserDefaults.standard\n",
         '        let d = UserDefaults.standard\n'
         '        d.register(defaults: ["husk.jit.autoEnable": true, "husk.downloadSnapshot": false])\n')
-    shutil.copy2(KIT / "overlay/VRBoxLab.swift", app / "VRBoxLab.swift")
+    for overlay in sorted((KIT / "overlay").glob("VRBox*.swift")):
+        shutil.copy2(overlay, app / overlay.name)
 
     # Keep build-setting placeholders used by Xcode (including extension IDs).
     info = app / "Info.plist"
