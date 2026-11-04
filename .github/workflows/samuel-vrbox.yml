@@ -13,12 +13,13 @@ permissions:
 
 jobs:
   build-ios:
-    runs-on: macos-26
+    runs-on: macos-15
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - name: Prepare Xcode and packager
         run: |
+          sudo xcode-select --switch /Applications/Xcode_26.3.app/Contents/Developer
           xcodebuild -version
           brew install xcodegen
           command -v qemu-img || brew install qemu
