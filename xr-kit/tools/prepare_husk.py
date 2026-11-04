@@ -45,6 +45,36 @@ def normalize_stikjit_interfaces(source):
         path.write_text(updated, encoding="utf-8")
 
 
+def make_source_compatible_with_swift_62(app):
+    replace_once(app / "ApkMetadata.swift",
+        """        guard !found.isEmpty else { return nil }
+        let best = found.first { $0.locale == 0 } ?? found[0]
+""",
+        """        guard let best = found.first(where: { $0.locale == 0 }) ?? found.first else {
+            return nil
+        }
+""")
+    replace_once(app / "HuskBridgeFS.swift",
+        r'''        let script = "for p in " + safe.joined(separator: " ") + "; do "
+                   + "echo \"#P $p\"; "
+                   + "dumpsys package \"$p\" 2>/dev/null | grep -E "
+                   + "\"versionName=|primaryCpuAbi=|categoryHint=|appCategory=\" | head -8; "
+                   + "echo \"#K\"; "
+                   + "pm path \"$p\" 2>/dev/null | sed 's/^package://' | "
+                   + "while read a; do stat -c %s \"$a\" 2>/dev/null; done; done"
+''',
+        r'''        let script = [
+            "for p in \(safe.joined(separator: " ")); do ",
+            "echo \"#P $p\"; ",
+            "dumpsys package \"$p\" 2>/dev/null | grep -E ",
+            "\"versionName=|primaryCpuAbi=|categoryHint=|appCategory=\" | head -8; ",
+            "echo \"#K\"; ",
+            "pm path \"$p\" 2>/dev/null | sed 's/^package://' | ",
+            "while read a; do stat -c %s \"$a\" 2>/dev/null; done; done",
+        ].joined()
+''')
+
+
 def apply_automatic_setup(app):
     content = app / "ContentView.swift"
     replace_once(content, "    @State private var started = false\n",
@@ -99,6 +129,7 @@ def apply_overlay(source):
     text = project.read_text(encoding="utf-8")
     project.write_text(text.replace('TARGETED_DEVICE_FAMILY: "1,2"', 'TARGETED_DEVICE_FAMILY: "1"'), encoding="utf-8")
 
+    make_source_compatible_with_swift_62(app)
     apply_automatic_setup(app)
     replace_once(app / "ContentView.swift", "                SettingsTab()\n",
         '''                VRBoxLabTab()
