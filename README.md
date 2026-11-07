@@ -1,216 +1,32 @@
-# Orchard for iPhone
+# Aether XR — iOS experimental
 
-**Apple Silicon macOS, running inside an iPhone app.**
+Projeto independente em **SwiftUI + SceneKit + CoreMotion + Vision**, inspirado no catálogo de funções do [PhoneXR](https://github.com/samrat1games/phonexr). Não é uma redistribuição de seu código: interface e implementação foram escritas independentemente.
 
-An arm64 macOS Ventura guest boots through Apple's own chain — `AVPBooter →
-iBoot → XNU` — on QEMU's `apple-vm` machine, and runs to the desktop. QEMU is
-a library inside the app, the guest's cores are translated by TCG with a JIT,
-and the GPU is [reims-vgpu](https://github.com/steelbrain/reims-vgpu), drawing
-through the phone's own Metal. It is not fast — on an iPhone 15, light scenes
-reach 30–40 frames a second and dragging a window 10–15 — but it is the real
-macOS.
+## Recursos implementados
 
-This is the iOS port of [Orchard](https://github.com/yaelliethy/orchard), which
-does the same on a Linux host; that guide is in [`LINUX.md`](LINUX.md).
+- Launcher em português com identidade Aether XR, tema escuro e biblioteca de pacotes.
+- Visor 3D estereoscópico **experimental** para VR Box, com câmera por olho e ajuste de IPD.
+- Orientação de cabeça por giroscópio (CoreMotion), recentralização e controle de sensibilidade.
+- Demonstração de mãos com câmera traseira e Vision (até duas mãos), sem transmissão externa.
+- Inspeção local de arquivos `.apk`, `.ipa`, `.pxr`, `.zip`, lista de dependências OpenXR e salvamento no dispositivo.
+- Menu de configurações de visor, biblioteca e conforto.
 
-Nothing Apple ships is in the app or this repository. You bring the macOS VM.
+## Limitações que não devem ser ocultadas
 
-## What you need
+Este aplicativo **não executa APKs** no iPhone, não instala nem inicia jogos de outros desenvolvedores e não implementa um runtime OpenXR completo. A visualização do giroscópio pode exigir ajuste fino da orientação conforme o encaixe físico no visor. O rastreamento de mãos é um demonstrador 2D, não um controlador 6DoF. A renderização atual não possui perfil de distorção calibrado para as lentes do VR Box.
 
-| | |
-|---|---|
-| Phone | Tested on iPhone 15 (A16, 6 GB) with iOS 27. iOS 16 or later; the more memory, the better — a phone with 6 GB or more. |
-| Sideloading | A signing tool that adds the **increased memory limit** capability to the app's ID when it signs it. Stock iLoader does not; the build used in testing was patched to. Without it iOS kills the app at about 3 GB; with it the ceiling is about 4 GB. |
-| JIT | A way to attach a debugger to the app on launch, such as StikDebug. Without JIT the app cannot start the machine. |
-| Mac | Only to make the VM: a Mac with [UTM](https://mac.getutm.app) and a macOS 13 (Ventura) VM made with the **Virtualize** backend. |
-| Space | About 20 GB on the phone or on a USB drive for the VM folder. |
+## Compilação
 
-## 1. Make the VM folder (on a Mac)
+Requer macOS com Xcode. O projeto `.xcodeproj` já está incluído: abra-o no Xcode e selecione um *Team* em **Signing & Capabilities** para assinar o aplicativo. Alternativamente, use:
 
-Install macOS Ventura in UTM with **Virtualize**, finish its setup assistant
-there (it is far too slow to do on the phone), then shut it down — not
-suspend — and convert it. The converter needs `qemu-img`, from Homebrew's
-QEMU:
-
-```bash
-brew install qemu
+```sh
+xcodebuild -project AetherXR.xcodeproj -scheme AetherXR -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
 ```
 
-```bash
-python3 scripts/utm-to-orchard.py ~/Library/Containers/com.utmapp.UTM/Data/Documents/Ventura.utm --out-dir ~/Desktop/OrchardVM
-```
+Para conferir o analisador em Linux ou macOS com Swift: `./scripts/run-tests.sh`.
 
-The folder holds `disk.qcow2`, `aux.img`, `config.json`,
-`AVPBooter.patched.bin` and `overlay.qcow2`. The disk is only ever read; all
-the guest's writes go into `overlay.qcow2`. To reset the guest, replace the
-overlay with a fresh one:
+O workflow `.github/workflows/ios-build.yml` compila um **IPA sem assinatura** no GitHub Actions. Para instalar no seu iPhone, o app precisa ser assinado com uma identidade de desenvolvedor adequada, conforme as regras do iOS e o método de instalação escolhido. O artefato só existe se o workflow concluir com sucesso.
 
-```bash
-qemu-img create -f qcow2 -F qcow2 -b disk.qcow2 -u overlay.qcow2 68719476736
-```
+## Origem e licença
 
-## 2. Install the app
-
-Take `Orchard.ipa` from the release (or build it, below) and install it with
-your signing tool, with the increased memory limit on. Then enable JIT for it
-with StikDebug and launch it.
-
-## 3. Give it the VM
-
-Either copy the `OrchardVM` folder into **Files → On My iPhone → Orchard**,
-or open the round button in the corner → **Settings… → Where the VM lives →
-Choose a folder…** and pick it on a USB drive. From a drive the VM boots in
-place; a USB SSD is noticeably faster than a flash stick.
-
-## 4. Settings that matter
-
-In the round button's **Settings…**. All of these apply the next time the
-machine starts.
-
-* **Machine → Memory**: 2.5 GB with the increased limit, 2 GB without it.
-  Under 2 GB macOS reboots in a loop; at 3 GB the app hits the iOS ceiling as
-  soon as a few windows open. The ceiling as measured is shown under the
-  picker.
-* **Machine → Cores**: 2–4. An iPhone has two fast cores; more guest cores
-  than that are not always faster.
-* **Translator → Translation buffer**: 256 MB. Less makes the guest
-  re-translate its code constantly; more can hang the machine at the first
-  instruction.
-* **Screen → Resolution**: the "Like the screen" modes fill the phone edge
-  to edge; smaller is faster. **Refresh rate**: 30 Hz is a quarter of the
-  work of 120.
-* **Screen → Trackpad mode**: the pointer moves by how far the finger travels;
-  tap to click, two fingers to right-click and scroll, hold then move to drag.
-* **Machine → Processor → Fast pointer authentication**: on by default. The
-  guest still sees pointer authentication, but no signature is computed —
-  that was 10–15% of the emulator's work. Turn it off if macOS stops booting.
-
-For speed, **960×540 at 30 Hz** is the sweet spot: dragging windows is
-limited by how many pixels the guest's compositor redraws.
-
-In the guest itself, **System Settings → Accessibility → Display → Reduce
-transparency** helps noticeably, dragging windows above all: without it macOS
-re-renders the blur behind every translucent window, Dock and menu bar for
-each frame, all on the emulated CPU.
-
-### Turn off software updates in the guest — first thing
-
-Once the guest has internet, Ventura downloads security responses and system
-updates on its own and starts installing them. The install can never finish
-on this machine, and the next boot ends in Recovery with no disk — the data
-volume is intact, but the system will not boot. Right after the first login,
-before connecting to the internet if you can, turn everything off in
-**System Settings → General → Software Update → Automatic updates**, and in
-the guest's Terminal:
-
-```bash
-sudo softwareupdate --schedule off
-sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload -bool false
-sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdateInstall -bool false
-sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall -bool false
-sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates -bool false
-```
-
-## 5. Start it
-
-Tap the round button in the corner and choose **Start**. The first boot to
-the login window takes several minutes. A machine that has stopped cannot be
-started again in the same run: close the app and open it again.
-
-## Sharing files with the guest
-
-Put files in **Files → On My iPhone → Orchard → Shared**, and in the guest's
-Finder choose **Go → Connect to Server** (⌘K), enter `http://10.0.2.2:8080`,
-**Connect**, then **Registered User** with any name and password — nothing
-checks them, but Ventura's WebDAV client will not mount without a user name,
-so **Guest** fails. The folder is mounted like a network drive and works both
-ways, around 15 MB/s. From the guest's Terminal, `curl` works as well:
-
-```bash
-curl -O http://10.0.2.2:8080/name-of-the-file
-```
-
-It can be turned off in **Settings… → Network**.
-
-## Building from source
-
-On a Mac with Xcode (and its iPhoneOS SDK), [rustup](https://rustup.rs) and
-Homebrew. QEMU's configure runs once natively before the iOS build, which is
-what the Homebrew libraries are for:
-
-```bash
-brew install ninja pkgconf glib pixman libslirp qemu
-```
-
-Then:
-
-```bash
-scripts/fetch-ios-deps.sh
-```
-
-```bash
-scripts/build-ios.sh
-```
-
-```bash
-ios/app/build.sh
-```
-
-The first downloads prebuilt static C libraries (GLib, pixman, libslirp and
-others; see `scripts/ios-deps-SOURCES.md`) into `deps/ios`. The second builds
-QEMU and reims-vgpu into `qemu/build-ios/libqemu-aarch64-softmmu.dylib`. The
-third builds the app around it and writes `ios/Orchard.ipa`, unsigned — your
-signing tool signs it on install.
-
-`ios/PORTING.md` is the long account of the port (in Russian): what was
-changed and why, and what each problem cost to find.
-
-## Known problems
-
-* It is slow. Every guest instruction is translated on the phone's CPU.
-* Apps take a long time to open their first window; wait before tapping again.
-* Internet works in the guest (virtio-net with NAT through the phone's own
-  connection), but nothing outside the phone can connect in to it.
-* Sound is experimental: turn it on in **Settings… → Machine → Sound**. The
-  guest sees a virtio-sound card as "Speakers"; while its CPUs are busy the
-  sound can break up.
-* If the app closes by itself a while after starting, iOS took the memory:
-  lower the guest's memory or the translation buffer.
-
-## What is in here
-
-| Path | What it is |
-|---|---|
-| `ios/app/` | The iPhone app: SwiftUI, no Xcode project; `ios/app/build.sh` builds it. |
-| `qemu/` | QEMU with Orchard's `apple-vm` machine and the iOS changes: runs as a library, JIT on iOS, in-process display and input. |
-| `reims-vgpu/` | The paravirtual GPU, vendored — [steelbrain/reims-vgpu](https://github.com/steelbrain/reims-vgpu), with a Metal backend that builds for iOS. |
-| `scripts/` | Build, convert a UTM VM, fetch the iOS dependencies. |
-| `ios/PORTING.md` | How the port was done, and what it cost. |
-| `TECHNICAL.md` | How Orchard itself works. |
-
-## Credits
-
-- **Youssef Elliethy** ([yaelliethy](https://github.com/yaelliethy)) — Orchard:
-  reverse-engineered enough of Apple's bootloader, virtualization and OS stack
-  to boot macOS on QEMU, and ported reims-vgpu to it.
-- **Anees Iqbal** ([steelbrain](https://github.com/steelbrain)) — reims-vgpu,
-  the GPU everything on screen goes through.
-- **Visual Ehrmanntraut** and **ChefKiss** ([ChefKissInc](https://github.com/ChefKissInc))
-  — Inferno, whose work laid the groundwork, including the Apple pointer
-  authentication macOS cannot boot without.
-- **Alexander Graf** — QEMU's `vmapple` machine.
-- **NyanSatan** — [Virtual-iBoot-Fun](https://github.com/NyanSatan/Virtual-iBoot-Fun),
-  the AVPBooter patch.
-- **Makr** ([MakrSas](https://github.com/MakrSas)), with Claude — the iOS port.
-
-`ATTRIBUTION.md` says exactly what came from where.
-
-## Licence
-
-QEMU and the changes to it, and the iOS app, are GPL-2.0-or-later; reims-vgpu
-is LGPL-3.0, with its author's permission for use in this app. The details,
-and the licences of the bundled C libraries, are in `LICENSE-NOTICE.md`.
-
-Unofficial, and not affiliated with Apple or ChefKiss. Apple's licence permits
-macOS virtualisation only on Apple-branded hardware — check that your use is
-within it.
+Código Aether XR: MIT (ver LICENSE). PhoneXR é uma referência conceitual externa; licenças, marcas e componentes de terceiros permanecem com os respectivos titulares. Não copie código ou ícones do upstream sem conferir sua licença.

@@ -1,0 +1,33 @@
+name: AetherXR
+options:
+  bundleIdPrefix: com.sam20009
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    GENERATE_INFOPLIST_FILE: NO
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    CODE_SIGN_STYLE: Automatic
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+targets:
+  AetherXR:
+    type: application
+    platform: iOS
+    sources:
+      - path: AetherXR
+        excludes:
+          - "**/.DS_Store"
+          - "Info.plist"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sam20009.aetherxr
+        INFOPLIST_FILE: AetherXR/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Aether XR
+        INFOPLIST_KEY_NSCameraUsageDescription: "A câmera é usada localmente para identificar mãos em realidade estendida."
+        INFOPLIST_KEY_UIRequiresFullScreen: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"

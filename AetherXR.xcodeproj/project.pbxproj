@@ -1,0 +1,98 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		57E929E5DC76609C911B970A /* AetherTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0023F6A45B46F29BE892B588 /* AetherTheme.swift */; };
+		8C2A9D027EE3631B71197DCF /* AetherXRApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB6768C4271F1AE4805360DB /* AetherXRApp.swift */; };
+		A0215B2E1B0718BB36066A0D /* HandTrackingScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A39FECF3CD75704521EC82 /* HandTrackingScreen.swift */; };
+		E8918E60C22741E390E2351E /* LibraryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 602B8E41E7B027348FC111DD /* LibraryStore.swift */; };
+		267154EC71669BA2DFE08E96 /* PackageAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CF2E34E6E8AA38FC318D8B9 /* PackageAnalyzer.swift */; };
+		D07D33E6EB9F55B36B8D3605 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7E7393E9EFBFE23C0522857 /* RootView.swift */; };
+		5723B7A6605DA20FD015B157 /* StereoExperience.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9011059DF4E436AA8FD657EB /* StereoExperience.swift */; };
+		FB90684E69A6C96ED866993E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8119A4784A182D847E337D77 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0023F6A45B46F29BE892B588 /* AetherTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AetherTheme.swift; sourceTree = "<group>"; };
+		CB6768C4271F1AE4805360DB /* AetherXRApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AetherXRApp.swift; sourceTree = "<group>"; };
+		F7A39FECF3CD75704521EC82 /* HandTrackingScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandTrackingScreen.swift; sourceTree = "<group>"; };
+		602B8E41E7B027348FC111DD /* LibraryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryStore.swift; sourceTree = "<group>"; };
+		1CF2E34E6E8AA38FC318D8B9 /* PackageAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackageAnalyzer.swift; sourceTree = "<group>"; };
+		A7E7393E9EFBFE23C0522857 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		9011059DF4E436AA8FD657EB /* StereoExperience.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StereoExperience.swift; sourceTree = "<group>"; };
+		8119A4784A182D847E337D77 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		13A03CFFEE26A9B9A367DAD9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		38A007151ABE87CC01A5B6E9 /* AetherXR.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AetherXR.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		CF5BDB0BEAFE176F9629192A /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		DF891E785808226D241F246E /* Root */ = {
+			isa = PBXGroup;
+			children = (9642F1047C1002A1EE72F0DB /* AetherXR */, 00C45FD35CB0F9C5F764F070 /* Products */,);
+			sourceTree = "<group>";
+		};
+		9642F1047C1002A1EE72F0DB /* AetherXR */ = {isa = PBXGroup; children = (0023F6A45B46F29BE892B588 /* AetherTheme.swift */, CB6768C4271F1AE4805360DB /* AetherXRApp.swift */, F7A39FECF3CD75704521EC82 /* HandTrackingScreen.swift */, 602B8E41E7B027348FC111DD /* LibraryStore.swift */, 1CF2E34E6E8AA38FC318D8B9 /* PackageAnalyzer.swift */, A7E7393E9EFBFE23C0522857 /* RootView.swift */, 9011059DF4E436AA8FD657EB /* StereoExperience.swift */, 8119A4784A182D847E337D77 /* Assets.xcassets */, 13A03CFFEE26A9B9A367DAD9 /* Info.plist */,); path = AetherXR; sourceTree = "<group>"; };
+		00C45FD35CB0F9C5F764F070 /* Products */ = {isa = PBXGroup; children = (38A007151ABE87CC01A5B6E9 /* AetherXR.app */,); name = Products; sourceTree = "<group>"; };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		0E8A3AD980EC179856012B7E /* AetherXR */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7D6C719966B0E46CD816464D /* Build configuration list for PBXNativeTarget */;
+			buildPhases = (1CDF2F71A52B082132B04DFF /* Sources */, CF5BDB0BEAFE176F9629192A /* Frameworks */, C02F1309AF4906C92F1EAD44 /* Resources */,);
+			buildRules = ();
+			dependencies = ();
+			name = AetherXR;
+			productName = AetherXR;
+			productReference = 38A007151ABE87CC01A5B6E9 /* AetherXR.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		98F54143AB4E86B28C3AFEE0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = { BuildIndependentTargetsInParallel = YES; LastUpgradeCheck = 1500; TargetAttributes = { 0E8A3AD980EC179856012B7E = { CreatedOnToolsVersion = 15.0; }; }; };
+			buildConfigurationList = 247BF104A9AD002C539DA531 /* Build configuration list for PBXProject */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = pt;
+			hasScannedForEncodings = 0;
+			knownRegions = (pt, en, Base,);
+			mainGroup = DF891E785808226D241F246E /* Root */;
+			productRefGroup = 00C45FD35CB0F9C5F764F070 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (0E8A3AD980EC179856012B7E /* AetherXR */,);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		C02F1309AF4906C92F1EAD44 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (FB90684E69A6C96ED866993E /* Assets.xcassets in Resources */,); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		1CDF2F71A52B082132B04DFF /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (57E929E5DC76609C911B970A /* AetherTheme.swift in Sources */, 8C2A9D027EE3631B71197DCF /* AetherXRApp.swift in Sources */, A0215B2E1B0718BB36066A0D /* HandTrackingScreen.swift in Sources */, E8918E60C22741E390E2351E /* LibraryStore.swift in Sources */, 267154EC71669BA2DFE08E96 /* PackageAnalyzer.swift in Sources */, D07D33E6EB9F55B36B8D3605 /* RootView.swift in Sources */, 5723B7A6605DA20FD015B157 /* StereoExperience.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		AB52CB08E0FDF02BF6C67C33 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = { ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; GCC_C_LANGUAGE_STANDARD = gnu17; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; }; name = Debug; };
+		5283471FF90C511CFE244FFF /* Release */ = {isa = XCBuildConfiguration; buildSettings = { ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; GCC_C_LANGUAGE_STANDARD = gnu17; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; }; name = Release; };
+		59E1BEE911F66DA37FEBACDC /* Debug */ = {isa = XCBuildConfiguration; buildSettings = { ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = AetherXR/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 17.0; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks"); MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = dev.samuel.aetherxr; PRODUCT_NAME = "$(TARGET_NAME)"; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_VERSION = 5.0; SWIFT_EMIT_LOC_STRINGS = YES; TARGETED_DEVICE_FAMILY = 1; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; }; name = Debug; };
+		F4C425279CD5DDD18FD6DC6D /* Release */ = {isa = XCBuildConfiguration; buildSettings = { ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = AetherXR/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 17.0; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks"); MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = dev.samuel.aetherxr; PRODUCT_NAME = "$(TARGET_NAME)"; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_VERSION = 5.0; SWIFT_EMIT_LOC_STRINGS = YES; TARGETED_DEVICE_FAMILY = 1; SWIFT_OPTIMIZATION_LEVEL = "-O"; }; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		7D6C719966B0E46CD816464D /* Build configuration list */ = {isa = XCConfigurationList; buildConfigurations = (59E1BEE911F66DA37FEBACDC /* Debug */, F4C425279CD5DDD18FD6DC6D /* Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		247BF104A9AD002C539DA531 /* Build configuration list */ = {isa = XCConfigurationList; buildConfigurations = (AB52CB08E0FDF02BF6C67C33 /* Debug */, 5283471FF90C511CFE244FFF /* Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = 98F54143AB4E86B28C3AFEE0 /* Project object */;
+}

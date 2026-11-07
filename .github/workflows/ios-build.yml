@@ -1,0 +1,30 @@
+name: Compilar Aether XR iOS
+on:
+  push:
+    branches: [aether-xr-ios]
+    paths-ignore: ['README.md']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compilar para iPhone físico
+        run: |
+          set -o pipefail
+          xcodebuild -project AetherXR.xcodeproj -scheme AetherXR \
+            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath "$PWD/build" CODE_SIGNING_ALLOWED=NO build | tee build.log | tail -80
+      - name: Preparar IPA sem assinatura
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/AetherXR.app Payload/
+          zip -qry AetherXR-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AetherXR-iOS-unsigned-IPA
+          path: AetherXR-unsigned.ipa
+          retention-days: 14
