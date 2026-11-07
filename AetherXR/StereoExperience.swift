@@ -3,6 +3,9 @@ import CoreMotion
 import SceneKit
 import simd
 import UIKit
+import AVFoundation
+import Vision
+import ImageIO
 
 @MainActor
 final class HeadTracker: ObservableObject {
@@ -10,33 +13,39 @@ final class HeadTracker: ObservableObject {
     @Published var status = "Aguardando sensores"
     private let manager = CMMotionManager()
     private var neutral: simd_quatd?
+    private var smoothed: simd_quatd?
     var sensitivity: Double = 1.0
 
     func start() {
         guard manager.isDeviceMotionAvailable else { status = "Giroscópio indisponível"; return }
         manager.deviceMotionUpdateInterval = 1.0 / 60.0
-        manager.startDeviceMotionUpdates(using: .xArbitraryZVertical, to: .main) { [weak self] data, error in
+        manager.startDeviceMotionUpdates(using: .xArbitraryCorrectedZVertical, to: .main) { [weak self] data, error in
             guard let self = self, let attitude = data?.attitude else { return }
             if let error = error { self.status = error.localizedDescription; return }
             let q = attitude.quaternion
             let current = simd_quatd(ix: q.x, iy: q.y, iz: q.z, r: q.w)
             if self.neutral == nil { self.neutral = current }
             guard let neutral = self.neutral else { return }
-            let relative = simd_inverse(neutral) * current
-            let scaled = simd_slerp(simd_quatd(ix: 0, iy: 0, iz: 0, r: 1), relative, self.sensitivity)
-            // Mapeamento experimental; orientação e ergonomia devem ser validadas no iPhone real.
+            // Camera looks toward -Z. The phone is landscape in the headset.
+            let basis = simd_quatd(angle: -.pi / 2, axis: simd_double3(0, 0, 1))
+            let relative = basis * simd_inverse(current) * neutral * simd_inverse(basis)
+            let amount = min(1.0, max(0.5, self.sensitivity))
+            let target = simd_slerp(simd_quatd(ix: 0, iy: 0, iz: 0, r: 1), relative, amount)
+            let scaled = simd_slerp(self.smoothed ?? target, target, 0.28)
+            self.smoothed = scaled
             self.orientation = SCNQuaternion(Float(scaled.imag.x), Float(scaled.imag.y),
                                              Float(scaled.imag.z), Float(scaled.real))
             self.status = "Giroscópio ativo"
         }
     }
-    func recenter() { neutral = nil }
+    func recenter() { neutral = nil; smoothed = nil }
     func stop() { manager.stopDeviceMotionUpdates() }
 }
 
 struct StereoExperience: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var tracker = HeadTracker()
+    @StateObject private var hands = VRHandTracker()
     let ipd: Double
     let motionEnabled: Bool
     let sensitivity: Double
@@ -49,10 +58,16 @@ struct StereoExperience: View {
             ZStack(alignment: .top) {
                 Color.black.ignoresSafeArea()
                 HStack(spacing: 0) {
-                    XRSceneView(eyeOffset: stereo ? -Float(ipd / 2000) : 0,
-                                rotation: motionEnabled ? tracker.orientation : SCNQuaternion(0,0,0,1), showGrid: showGrid)
+                    ZStack {
+                        XRSceneView(eyeOffset: stereo ? -Float(ipd / 2000) : 0,
+                                    rotation: motionEnabled ? tracker.orientation : SCNQuaternion(0,0,0,1), showGrid: showGrid)
+                        HandSkeletonOverlay(hands: hands.points)
+                    }
                     if stereo {
-                        XRSceneView(eyeOffset: Float(ipd / 2000), rotation: motionEnabled ? tracker.orientation : SCNQuaternion(0,0,0,1), showGrid: showGrid)
+                        ZStack {
+                            XRSceneView(eyeOffset: Float(ipd / 2000), rotation: motionEnabled ? tracker.orientation : SCNQuaternion(0,0,0,1), showGrid: showGrid)
+                            HandSkeletonOverlay(hands: hands.points)
+                        }
                     }
                 }
                 if stereo { Rectangle().fill(.black).frame(width: 4) }
@@ -70,7 +85,7 @@ struct StereoExperience: View {
                             .background(.black.opacity(0.60), in: Capsule())
                     }
                     Spacer()
-                    Text(tracker.status).font(.caption2).foregroundStyle(.white.opacity(0.7))
+                    Text("\(tracker.status) • Mãos: \(hands.points.count)").font(.caption2).foregroundStyle(.white.opacity(0.7))
                     Spacer()
                     Button { tracker.recenter() } label: {
                         Image(systemName: "scope").padding(12)
@@ -80,8 +95,8 @@ struct StereoExperience: View {
             }.frame(width: geometry.size.width, height: geometry.size.height)
         }
         .statusBarHidden(true).persistentSystemOverlays(.hidden)
-        .onAppear { tracker.sensitivity = sensitivity; if motionEnabled { tracker.start() }; requestOrientation(.landscape) }
-        .onDisappear { tracker.stop(); requestOrientation(.portrait) }
+        .onAppear { tracker.sensitivity = sensitivity; if motionEnabled { tracker.start() }; hands.start(); requestOrientation(.landscape) }
+        .onDisappear { tracker.stop(); hands.stop(); requestOrientation(.portrait) }
     }
 
     private func requestOrientation(_ allowed: UIInterfaceOrientationMask) {
@@ -161,5 +176,78 @@ struct XRSceneView: UIViewRepresentable {
             }
         }
         return scene
+    }
+}
+
+// Experimental 2D landmarks replicated in both stereo views.
+// They are not 3D hands and are not input for external games.
+struct HandSkeletonOverlay: View {
+    let hands: [[CGPoint]]
+    var body: some View {
+        Canvas { context, size in
+            for points in hands {
+                for point in points {
+                    let center = CGPoint(x: (1 - point.x) * size.width, y: point.y * size.height)
+                    context.fill(Path(ellipseIn: CGRect(x: center.x - 3, y: center.y - 3, width: 6, height: 6)), with: .color(.purple))
+                }
+            }
+        }.allowsHitTesting(false).accessibilityHidden(true)
+    }
+}
+
+@MainActor
+final class VRHandTracker: NSObject, ObservableObject {
+    @Published private(set) var points: [[CGPoint]] = []
+    private let session = AVCaptureSession()
+    private let worker = DispatchQueue(label: "AetherXR.VR.Hands", qos: .userInitiated)
+    private var configured = false
+
+    func start() {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized: configureAndStart()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                Task { @MainActor in if granted { self?.configureAndStart() } }
+            }
+        default: points = []
+        }
+    }
+    private func configureAndStart() {
+        if !configured {
+            guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+                  let input = try? AVCaptureDeviceInput(device: device) else { return }
+            session.beginConfiguration()
+            session.sessionPreset = .vga640x480
+            guard session.canAddInput(input) else { session.commitConfiguration(); return }
+            session.addInput(input)
+            let output = AVCaptureVideoDataOutput()
+            output.alwaysDiscardsLateVideoFrames = true
+            output.setSampleBufferDelegate(self, queue: worker)
+            if session.canAddOutput(output) { session.addOutput(output) }
+            session.commitConfiguration()
+            configured = true
+        }
+        let camera = session
+        worker.async { if !camera.isRunning { camera.startRunning() } }
+    }
+    func stop() {
+        let camera = session
+        worker.async { if camera.isRunning { camera.stopRunning() } }
+        points = []
+    }
+}
+
+extension VRHandTracker: AVCaptureVideoDataOutputSampleBufferDelegate {
+    nonisolated func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        let request = VNDetectHumanHandPoseRequest()
+        request.maximumHandCount = 2
+        let handler = VNImageRequestHandler(cmSampleBuffer: sampleBuffer, orientation: .right)
+        guard (try? handler.perform([request])) != nil else { return }
+        let found = (request.results ?? []).compactMap { hand -> [CGPoint]? in
+            guard let landmarks = try? hand.recognizedPoints(.all) else { return nil }
+            return landmarks.values.filter { $0.confidence > 0.45 }
+                .map { CGPoint(x: $0.location.x, y: 1 - $0.location.y) }
+        }
+        Task { @MainActor [weak self] in self?.points = found }
     }
 }
