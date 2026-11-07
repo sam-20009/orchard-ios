@@ -69,7 +69,7 @@ struct RootView: View {
                 featureButton("Importar aplicativo", subtitle: "APK, IPA, PXR ou ZIP", icon: "square.and.arrow.down.fill") { importFile = true }
                 featureButton("Rastreamento das mãos", subtitle: "Detecção com a câmera e Vision", icon: "hand.raised.fingers.spread.fill") { showHands = true }
                 featureButton("Configurações", subtitle: "Visor, sensores e conforto", icon: "slider.horizontal.3") { selectedTab = 3 }
-                Text("Versão experimental • iPhone • Código aberto")
+                Text("Versão 0.2 • Mãos no visor VR • Código aberto")
                     .frame(maxWidth: .infinity).font(.caption2).foregroundStyle(AetherTheme.textMuted)
             }.padding(18)
         }.background(AetherTheme.background).navigationBarHidden(true)
@@ -151,7 +151,7 @@ struct RootView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Sobre") {
-                LabeledContent("Aplicativo", value: "Aether XR 0.1")
+                LabeledContent("Aplicativo", value: "Aether XR 0.2")
                 Text("Projeto independente inspirado nas funções públicas do PhoneXR. Não inclui código ou logotipos do projeto original.")
                     .font(.caption).foregroundStyle(.secondary)
             }
