@@ -1,0 +1,48 @@
+name: HackiOS Apple XNU 8796 real config and ARM64 entry compile
+
+on:
+  push:
+    branches:
+      - hackios-g611mt-uboot-20261108
+    paths:
+      - "hackios-g611mt/xnu-8796-original-config-probe.sh"
+      - ".github/workflows/xnu-8796-config-arm64.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  original-xnu-arm64-config:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install original XNU host config generator dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y gcc bison flex csh unifdef clang llvm make
+          bison --version | head -n1
+          flex --version
+          clang --version | head -n1
+      - name: Fetch exact Apple XNU 8796.121.2 reference
+        run: |
+          git clone --depth 1 --branch xnu-8796.121.2 https://github.com/apple-oss-distributions/xnu.git upstream-xnu
+          git -C upstream-xnu rev-parse HEAD
+          test -f upstream-xnu/SETUP/config/doconf
+          test -f upstream-xnu/osfmk/arm64/start.s
+          test -f upstream-xnu/osfmk/arm64/genassym.c
+      - name: Build real config generator, generate headers, compile XNU sources
+        run: |
+          set -o pipefail
+          bash hackios-g611mt/xnu-8796-original-config-probe.sh 2>&1 | tee xnu-8796-probe.log
+      - name: Upload logs and authentic build objects (not bootable)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xnu-8796-original-config-and-arm64-compile-logs
+          path: |
+            xnu-8796-probe.log
+            xnu-config-artifacts/**
+          retention-days: 7
+          if-no-files-found: warn
