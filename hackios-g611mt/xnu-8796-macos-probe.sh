@@ -58,7 +58,7 @@ else
   echo "Using authentic macOS SDK symbol alias header" | tee "$ART/symbol-aliasing.log"
 fi
 INCLUDES="-I $ART/generated -I $ART/headers -I $ROOT/bsd -I $ROOT/osfmk -I $ROOT/pexpert -I $SDKROOT/usr/include -I $ROOT/EXTERNAL_HEADERS -I $ROOT/libkern -I $ROOT/iokit -I $ROOT/libsa"
-FLAGS="-target arm64-apple-macos11.0 -isysroot $SDKROOT -march=armv8-a -D__arm64__=1 -DARM64_BOARD_CONFIG_BCM2837=1 -DPLATFORM_XNU=1 -fno-integrated-as -include stdbool.h -include $SDKROOT/usr/include/Availability.h"
+FLAGS="-target arm64-apple-macos11.0 -isysroot $SDKROOT -march=armv8-a -D__arm64__=1 -DARM64_BOARD_CONFIG_BCM2837=1 -DPLATFORM_XNU=1 -DKERNEL=1 -D_KERNEL=1 -fno-integrated-as -include stdbool.h -include $SDKROOT/usr/include/Availability.h"
 echo "COMPILING GENUINE APPLE XNU GENASSYM.C" | tee "$ART/genassym.log"
 xcrun clang $FLAGS $INCLUDES -S "$ROOT/osfmk/arm64/genassym.c" -o "$ART/genassym-compiler.s" >>"$ART/genassym.log" 2>&1
 GEN_RC=$?
