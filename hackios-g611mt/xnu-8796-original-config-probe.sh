@@ -41,6 +41,8 @@ csh -f SETUP/config/doconf \
   >>"$ART/doconf.log" 2>&1
 DOCONF_RC=$?
 echo "doconf_exit=$DOCONF_RC" | tee -a "$ART/doconf.log"
+  echo "=== DOCONF TRACE ==="; tail -n 90 "$ART/doconf.log" || true
+  echo "=== GENERATED FILES ==="; find "$ART/generated" -maxdepth 2 -type f -printf "%P\n" | head -n 55
 find "$ART/generated" -maxdepth 3 -type f | sort > "$ART/generated-files.txt"
 find "$ART/generated" -name mach_assert.h -o -name mach_ldebug.h | tee "$ART/generated-headers.txt"
 if [[ "$DOCONF_RC" -ne 0 ]]; then exit 12; fi
@@ -57,6 +59,7 @@ clang --target=arm64-apple-darwin \
   >>"$ART/start-compile.log" 2>&1
 START_RC=$?
 echo "start_s_exit=$START_RC" | tee -a "$ART/start-compile.log"
+  echo "=== START.S FIRST ERRORS ==="; tail -n 75 "$ART/start-compile.log" || true
 
 echo "=== ORIGINAL XNU GENASSYM.C ARM64 COMPILE ===" | tee "$ART/genassym-compile.log"
 clang --target=aarch64-none-elf -march=armv8-a \
@@ -67,5 +70,6 @@ clang --target=aarch64-none-elf -march=armv8-a \
   >>"$ART/genassym-compile.log" 2>&1
 GEN_RC=$?
 echo "genassym_exit=$GEN_RC" | tee -a "$ART/genassym-compile.log"
+  echo "=== GENASSYM.C FIRST ERRORS ==="; tail -n 75 "$ART/genassym-compile.log" || true
 if [[ "$START_RC" -ne 0 || "$GEN_RC" -ne 0 ]]; then exit 13; fi
 echo "ACTUAL_XNU_START_AND_GENASSYM_OBJECTS_BUILT"
