@@ -37,7 +37,7 @@ export SOURCE="$ROOT"
 echo "=== APPLE DOCONF ARM64 BCM2837 DEVELOPMENT ===" | tee "$ART/doconf.log"
 csh -f SETUP/config/doconf \
   -c -cpu arm64 -soc bcm2837 -platform xnu \
-  -d "$ART/generated" -m "$ROOT/config" -s "$ROOT" DEVELOPMENT \
+  -d "$ART/generated" -m "$ROOT/config" -s "$ROOT/osfmk/conf" DEVELOPMENT \
   >>"$ART/doconf.log" 2>&1
 DOCONF_RC=$?
 echo "doconf_exit=$DOCONF_RC" | tee -a "$ART/doconf.log"
@@ -46,6 +46,10 @@ echo "doconf_exit=$DOCONF_RC" | tee -a "$ART/doconf.log"
 find "$ART/generated" -maxdepth 3 -type f | sort > "$ART/generated-files.txt"
 find "$ART/generated" -name mach_assert.h -o -name mach_ldebug.h | tee "$ART/generated-headers.txt"
 if [[ "$DOCONF_RC" -ne 0 ]]; then exit 12; fi
+if [[ ! -s "$ART/generated/mach_assert.h" || ! -s "$ART/generated/mach_ldebug.h" ]]; then
+  echo "EXPECTED GENERATED HEADERS MISSING: original config did not complete" | tee -a "$ART/doconf.log"
+  exit 12
+fi
 
 # Compile the original Apple .s once with generated headers.
 # The 4K page constants are from the original BCM2837 board config.
