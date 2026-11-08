@@ -1,0 +1,63 @@
+name: HackiOS SM-G611MT U-Boot Ubuntu compile (NO FLASH)
+
+on:
+  push:
+    branches:
+      - hackios-g611mt-uboot-20261108
+    paths:
+      - .github/workflows/uboot-g611mt-experimental.yml
+      - hackios-g611mt/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  uboot-arm64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux AArch64 toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu make bc bison flex libssl-dev libgnutls28-dev python3 python3-setuptools python3-pyelftools swig device-tree-compiler
+          aarch64-linux-gnu-gcc --version | head -n1
+      - name: Fetch pinned U-Boot source
+        run: |
+          git clone --filter=blob:none https://github.com/u-boot/u-boot.git upstream-u-boot
+          git -C upstream-u-boot checkout 934995f642a21ca7f35fa9aed5f061394fcba243
+          git -C upstream-u-boot rev-parse HEAD | tee upstream-commit.txt
+          cp hackios-g611mt/exynos7870-on7xreflte.dts upstream-u-boot/dts/upstream/src/arm64/exynos/exynos7870-on7xreflte.dts
+          cp hackios-g611mt/exynos7870-on7xreflte-u-boot.dtsi upstream-u-boot/arch/arm/dts/exynos7870-on7xreflte-u-boot.dtsi
+      - name: Configure experimental on7xreflte (unverified peripheral map)
+        run: |
+          set -o pipefail
+          make -C upstream-u-boot O=../out-g611mt ARCH=arm CROSS_COMPILE=aarch64-linux-gnu- exynos-mobile_defconfig 2>&1 | tee g611mt-config.log
+          upstream-u-boot/scripts/config --file out-g611mt/.config --set-str DEFAULT_DEVICE_TREE "exynos/exynos7870-on7xreflte"
+          make -C upstream-u-boot O=../out-g611mt ARCH=arm CROSS_COMPILE=aarch64-linux-gnu- olddefconfig 2>&1 | tee -a g611mt-config.log
+          grep -Fx 'CONFIG_DEFAULT_DEVICE_TREE="exynos/exynos7870-on7xreflte"' out-g611mt/.config
+      - name: Compile complete U-Boot for AArch64
+        run: |
+          set -o pipefail
+          make -C upstream-u-boot O=../out-g611mt ARCH=arm CROSS_COMPILE=aarch64-linux-gnu- -j2 2>&1 | tee g611mt-compile.log
+          test -s out-g611mt/u-boot
+          file out-g611mt/u-boot
+          sha256sum out-g611mt/u-boot out-g611mt/u-boot.bin | tee g611mt-artifact-sha256.txt
+      - name: Preserve exact logs and build artifacts (NOT hardware-verified)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hackios-g611mt-uboot-lab-unverified
+          path: |
+            upstream-commit.txt
+            g611mt-config.log
+            g611mt-compile.log
+            g611mt-artifact-sha256.txt
+            out-g611mt/.config
+            out-g611mt/u-boot
+            out-g611mt/u-boot.bin
+            out-g611mt/u-boot.dtb
+            out-g611mt/u-boot-nodtb.bin
+          if-no-files-found: warn
+          retention-days: 7
