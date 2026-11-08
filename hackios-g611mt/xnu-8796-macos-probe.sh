@@ -57,8 +57,18 @@ if [ ! -f "$SDKROOT/usr/include/sys/_symbol_aliasing.h" ]; then
 else
   echo "Using authentic macOS SDK symbol alias header" | tee "$ART/symbol-aliasing.log"
 fi
-INCLUDES="-I $ART/generated -I $ART/headers -I $ROOT/osfmk -I $ROOT/bsd -I $ROOT/pexpert -I $ROOT/libkern -I $ROOT/iokit -I $ROOT/libsa -I $ROOT/security -I $SDKROOT/usr/include -I $ROOT/EXTERNAL_HEADERS"
+INCLUDES="-I $ART/generated -I $ART/headers -I $ROOT -I $ROOT/osfmk -I $ROOT/bsd -I $ROOT/pexpert -I $ROOT/libkern -I $ROOT/iokit -I $ROOT/libsa -I $ROOT/security -I $SDKROOT/usr/include -I $ROOT/EXTERNAL_HEADERS"
 FLAGS="-target arm64-apple-macos11.0 -isysroot $SDKROOT -march=armv8-a -D__arm64__=1 -DARM64_BOARD_CONFIG_BCM2837=1 -DPLATFORM_XNU=1 -DKERNEL=1 -D_KERNEL=1 -DKERNEL_PRIVATE=1 -DXNU_KERNEL_PRIVATE=1 -DMACH_KERNEL_PRIVATE=1 -DPRIVATE=1 -DAPPLE=1 -D__MACHO__=1 -DCURRENT_MACHINE_CONFIG_LC=arm64 -ffreestanding -std=gnu11 -include $ROOT/EXTERNAL_HEADERS/stdatomic.h -fno-integrated-as -include stdbool.h -include $SDKROOT/usr/include/Availability.h"
+# Determine scheduler flags from Apple's original generated ARM64 configuration.
+for schedopt in CONFIG_SCHED_MULTIQ CONFIG_SCHED_TIMESHARE_CORE; do
+  if grep -qE "^[[:space:]]*options[[:space:]]+$schedopt([[:space:]]|$)" "$ART/generated/config.DEVELOPMENT_ARM64"; then
+    FLAGS="$FLAGS -D$schedopt=1"
+    echo "CONFIG_SELECTED=$schedopt" | tee -a "$ART/host.log"
+  fi
+done
+echo "SDK string prototypes (for actual kernel compatibility diagnostics)" >> "$ART/host.log"
+grep -nE '(ffsll|flsll|ffs\(|fls\()' "$SDKROOT/usr/include/_strings.h" | head -n 12 >> "$ART/host.log" || true
+
 echo "COMPILING GENUINE APPLE XNU GENASSYM.C" | tee "$ART/genassym.log"
 xcrun clang $FLAGS $INCLUDES -S "$ROOT/osfmk/arm64/genassym.c" -o "$ART/genassym-compiler.s" >>"$ART/genassym.log" 2>&1
 GEN_RC=$?
