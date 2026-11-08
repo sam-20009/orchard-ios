@@ -1,0 +1,24 @@
+// SPDX-License-Identifier: GPL-2.0
+/* SM-G611MT experimental overlay. Vendor on7xreflte RAM, NOT on7xelte.
+ * No flash or boot claims. Must validate S-Boot memory map and DTB.
+ */
+/ {
+ model = "Samsung Galaxy J7 Prime 2 SM-G611MT experimental";
+ model_info-chip = <7870>;
+ model_info-hw_rev = <0>;
+ model_info-hw_rev_end = <255>;
+ chosen {
+   #address-cells = <2>;
+   #size-cells = <1>;
+   ranges;
+   /* No framebuffer node: physical address not verified for G611MT. */
+ };
+ memory@40000000 {
+   device_type = "memory";
+   reg = <0x0 0x40000000 0x3d800000>;
+ };
+ memory@80000000 {
+   device_type = "memory";
+   reg = <0x0 0x80000000 0x80000000>;
+ };
+};
