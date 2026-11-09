@@ -5,6 +5,7 @@ on:
       - hackios-g611mt-hakios-port-20261109
     paths:
       - .github/workflows/hakios-g611mt-xnu-theos.yml
+      - "hakios-port/scripts/build-upstream-with-theos.sh"
   workflow_dispatch:
 permissions:
   contents: read
