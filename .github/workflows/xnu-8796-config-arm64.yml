@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   original-xnu-arm64-config:
@@ -36,6 +36,31 @@ jobs:
         run: |
           set -o pipefail
           bash hackios-g611mt/xnu-8796-original-config-probe.sh 2>&1 | tee xnu-8796-probe.log
+
+      - name: Preserve latest XNU generator and compiler diagnostics on isolated branch
+        if: always()
+        continue-on-error: true
+        run: |
+          set -u
+          mkdir -p .github/hackios-ci-results/xnu8796
+          for path in doconf.log config-tool.log generated-headers.txt generated-files.txt start-compile.log genassym-compile.log provenance.log; do
+            source_file="xnu-config-artifacts/$path"
+            if [ -f "$source_file" ]; then
+              cp "$source_file" ".github/hackios-ci-results/xnu8796/$path"
+            fi
+          done
+          if [ -f xnu-8796-probe.log ]; then
+            cp xnu-8796-probe.log .github/hackios-ci-results/xnu8796/workflow-probe.log
+          fi
+          printf 'github_run_id=%s\nsource_commit=%s\n' "$GITHUB_RUN_ID" "$GITHUB_SHA" > .github/hackios-ci-results/xnu8796/ci-run.txt
+          git config user.name "HackiOS GitHub Actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add .github/hackios-ci-results/xnu8796/
+          if ! git diff --staged --quiet; then
+            git commit -m "Preserve authentic XNU build diagnostics [skip ci]"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+
       - name: Upload logs and authentic build objects (not bootable)
         if: always()
         uses: actions/upload-artifact@v4
