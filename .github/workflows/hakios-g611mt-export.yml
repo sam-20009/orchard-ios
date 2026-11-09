@@ -30,6 +30,12 @@ jobs:
           cp -a hakios-upstream/configs export/source/hakios-upstream/
           cp -a hakios-upstream/tools export/source/hakios-upstream/
           cp -a hakios-upstream/devices/qemu export/source/hakios-upstream/
+          mkdir -p export/build/upstream-prebuilt
+          cp hakios-upstream/prebuilt/hakios-kernel export/build/upstream-prebuilt/hakios-kernel
+          cp hakios-upstream/prebuilt/userland/hello export/build/upstream-prebuilt/hello
+          file export/build/upstream-prebuilt/hakios-kernel > export/build/upstream-prebuilt/kernel-file.txt
+          sha256sum export/build/upstream-prebuilt/hakios-kernel export/build/upstream-prebuilt/hello > export/build/upstream-prebuilt/SHA256SUMS
+
           cp -a hakios-upstream/docs/porting export/source/hakios-upstream/
           cp -a hakios-port/devices/on7xreflte export/source/g611mt-port/
           cp -a hakios-port/scripts export/source/g611mt-port/
