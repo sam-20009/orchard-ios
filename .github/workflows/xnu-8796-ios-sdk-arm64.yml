@@ -1,0 +1,60 @@
+name: HackiOS genuine XNU 8796 iPhoneOS SDK arm64 startup
+on:
+  push:
+    branches: [hackios-g611mt-uboot-20261108]
+    paths:
+      - ".github/scripts/xnu-8796-macos-arm64.sh"
+      - ".github/workflows/xnu-8796-ios-sdk-arm64.yml"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  xnu-iphoneos-sdk:
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XNU original host generator tools
+        run: |
+          export HOMEBREW_NO_AUTO_UPDATE=1
+          brew install bison flex unifdef
+          echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix flex)/bin" >> "$GITHUB_PATH"
+          xcrun --sdk iphoneos --show-sdk-path
+      - name: Fetch exact original Apple XNU
+        run: |
+          git clone --depth 1 --branch xnu-8796.121.2 https://github.com/apple-oss-distributions/xnu.git upstream-xnu
+          test "$(git -C upstream-xnu rev-parse HEAD)" = "c54f35ca767986246321eb901baf8f5ff7923f6a"
+      - name: Compile original Apple config, genassym, assym and start
+        run: |
+          set -o pipefail
+          bash .github/scripts/xnu-8796-macos-arm64.sh 2>&1 | tee xnu-iphoneos-probe.log
+      - name: Store compiler logs and authentic generated objects
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xnu8796-iphoneos-sdk-arm64-first-start
+          path: |
+            xnu-iphoneos-probe.log
+            xnu-macos-build/**
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Publish first compiler errors to separate diagnostics path
+        if: always()
+        continue-on-error: true
+        run: |
+          mkdir -p .github/hackios-ci-results/xnu8796-ios-sdk
+          for name in commit.txt toolchain.log config-tool.log doconf.log generated-files.txt genassym-compile.log assym-generation.log start-compile.log final-build.txt; do
+            if [ -f "xnu-macos-build/$name" ]; then
+              cp "xnu-macos-build/$name" ".github/hackios-ci-results/xnu8796-ios-sdk/$name"
+            fi
+          done
+          test ! -f xnu-iphoneos-probe.log || cp xnu-iphoneos-probe.log .github/hackios-ci-results/xnu8796-ios-sdk/workflow-probe.log
+          echo "$GITHUB_RUN_ID" > .github/hackios-ci-results/xnu8796-ios-sdk/run-id.txt
+          git config user.name "HackiOS GitHub Actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add .github/hackios-ci-results/xnu8796-ios-sdk
+          if ! git diff --cached --quiet; then
+            git commit -m "Save original XNU iPhoneOS SDK compiler evidence [skip ci]"
+            git push origin "HEAD:$GITHUB_REF_NAME"
+          fi
