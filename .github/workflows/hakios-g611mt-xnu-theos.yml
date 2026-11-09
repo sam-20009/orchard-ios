@@ -1,0 +1,44 @@
+name: HakiOS actual source XNU build with real Theos Linux toolchain
+on:
+  push:
+    branches:
+      - hackios-g611mt-hakios-port-20261109
+    paths:
+      - .github/workflows/hakios-g611mt-xnu-theos.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  linux-real-xnu-8796:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 38
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install host utilities
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y git curl xz-utils tar gcc g++ make \
+            clang lld llvm flex bison m4 perl python3 autoconf automake \
+            libtool qemu-system-arm qemu-efi-aarch64 file
+      - name: Clone exact pinned HakiOS upstream
+        run: |
+          git clone --depth 1 --filter=blob:none https://github.com/oosexgang/hakios-xnu-kernel.git hakios
+          git -C hakios fetch --depth 1 origin 63fc2b4633bac3af8e57dadab9f5a8d4cb940438
+          git -C hakios -c advice.detachedHead=false checkout --detach 63fc2b4633bac3af8e57dadab9f5a8d4cb940438
+      - name: Build with real XNU source and Theos dependencies
+        run: |
+          bash hakios-port/scripts/build-upstream-with-theos.sh
+      - name: Upload full logs and real kernel only if built
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hakios-actual-XNU-source-linux-toolchain-evidence
+          path: |
+            ci-evidence/**/*.log
+            ci-evidence/*.txt
+            ci-evidence/*.log
+            hakios/hakios-kernel
+            hakios/xnu-build.log
+            hakios/logs/qemu-open.log
+          retention-days: 14
+          if-no-files-found: warn
