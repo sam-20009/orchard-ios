@@ -34,7 +34,16 @@ cd "$ROOT" || exit 1
 export SRCROOT="$ROOT"
 export OBJROOT="$ART/generated"
 export SOURCE="$ROOT"
-echo "=== APPLE DOCONF ARM64 BCM2837 DEVELOPMENT ===" | tee "$ART/doconf.log"
+echo "=== VERIFY REAL APPLE XNU OPTION RULES ===" | tee "$ART/doconf.log"
+for source in "$ROOT/osfmk/conf/files" "$ROOT/osfmk/conf/Makefile.template" "$ROOT/config/MASTER" "$ROOT/config/MASTER.arm64.bcm2837"; do
+  if [[ ! -s "$source" ]]; then
+    echo "REQUIRED_XNU_SOURCE_MISSING: $source" | tee -a "$ART/doconf.log"
+    exit 12
+  fi
+  echo "ORIGINAL_XNU_INPUT_PRESENT: $source" | tee -a "$ART/doconf.log"
+done
+grep -nE 'OPTIONS/(mach_assert|mach_ldebug)' "$ROOT/osfmk/conf/files" | tee -a "$ART/doconf.log"
+echo "=== APPLE DOCONF ARM64 BCM2837 DEVELOPMENT ===" | tee -a "$ART/doconf.log"
 csh -f SETUP/config/doconf \
   -c -cpu arm64 -soc bcm2837 -platform xnu \
   -d "$ART/generated" -m "$ROOT/config" -s "$ROOT/osfmk/conf" DEVELOPMENT \
