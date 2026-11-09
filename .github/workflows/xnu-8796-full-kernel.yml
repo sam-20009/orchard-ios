@@ -1,0 +1,79 @@
+name: HackiOS XNU 8796 full original-kernel build attempt
+on:
+  push:
+    branches: [hackios-g611mt-uboot-20261108]
+    paths:
+      - ".github/workflows/xnu-8796-full-kernel.yml"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  full-xnu-arm64-bcm2837:
+    runs-on: macos-14
+    timeout-minutes: 45
+    env:
+      MACOS_VERSION: "13.5"
+      KERNEL_CONFIG: "DEVELOPMENT"
+      ARCH_CONFIG: "ARM64"
+      MACHINE_CONFIG: "BCM2837"
+      MAKEFLAGS: "-k"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get pinned XNU build driver
+        run: |
+          git init -q xnu-builder
+          git -C xnu-builder fetch -q --depth 1 https://github.com/blacktop/darwin-xnu-build.git 663906528d1cd5ea8fde7de6f16de73db9511549
+          git -C xnu-builder checkout -q FETCH_HEAD
+          git -C xnu-builder rev-parse HEAD | tee pinned-builder-commit.txt
+      - name: Prepare real macOS XNU build tools
+        run: |
+          export HOMEBREW_NO_AUTO_UPDATE=1
+          brew install jq gum bash cmake ninja xcodes
+          xcodebuild -version
+          xcrun --sdk macosx --show-sdk-path
+      - name: Run full kernel build (do not flash or assert bootability)
+        working-directory: xnu-builder
+        run: |
+          set -o pipefail
+          bash build.sh 2>&1 | tee ../xnu-full-kernel-build.log
+      - name: Inspect actual Mach-O kernel outputs and sizes
+        if: always()
+        run: |
+          mkdir -p xnu-full-results
+          printf 'Original XNU 8796 BCM2837 ARM64 attempt, no hardware compatibility verification.\n' > xnu-full-results/STATUS.txt
+          test ! -f xnu-full-kernel-build.log || cp xnu-full-kernel-build.log xnu-full-results/xnu-full-kernel-build.log
+          find xnu-builder -type f \( -name 'kernel.development*' -o -name 'kernel.release*' \) -size +64k -print > xnu-full-results/potential-kernels.txt || true
+          while IFS= read -r p; do
+            file "$p" >> xnu-full-results/potential-kernel-types.txt || true
+            shasum -a 256 "$p" >> xnu-full-results/potential-kernel-sha256.txt || true
+          done < xnu-full-results/potential-kernels.txt
+      - name: Upload exact original-kernel compilation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hackios-xnu8796-full-kernel-compilation-attempt
+          path: |
+            pinned-builder-commit.txt
+            xnu-full-results/**
+            xnu-builder/fakeroot/System/Library/Kernels/kernel.*
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Publish first errors to isolated branch
+        if: always()
+        continue-on-error: true
+        run: |
+          mkdir -p .github/hackios-ci-results/xnu8796-full-kernel
+          if [ -f xnu-full-kernel-build.log ]; then
+            tail -n 250 xnu-full-kernel-build.log > .github/hackios-ci-results/xnu8796-full-kernel/compiler-tail.log
+          fi
+          for name in STATUS.txt potential-kernels.txt potential-kernel-types.txt potential-kernel-sha256.txt; do
+            test ! -f "xnu-full-results/$name" || cp "xnu-full-results/$name" ".github/hackios-ci-results/xnu8796-full-kernel/$name"
+          done
+          echo "$GITHUB_RUN_ID" > .github/hackios-ci-results/xnu8796-full-kernel/run-id.txt
+          git config user.name "HackiOS GitHub Actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add .github/hackios-ci-results/xnu8796-full-kernel
+          if ! git diff --cached --quiet; then
+            git commit -m "Record complete XNU ARM64 kernel build diagnostics [skip ci]"
+            git push origin "HEAD:$GITHUB_REF_NAME"
+          fi
