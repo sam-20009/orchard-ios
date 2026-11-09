@@ -1,0 +1,3 @@
+#include common_defconfig
+#include exynos7870.config
+#include on7xreflte.config
