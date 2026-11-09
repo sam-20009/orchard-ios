@@ -1,0 +1,6 @@
+=== ORIGINAL XNU START.S ARM64 COMPILE ===
+/home/runner/work/orchard-ios/orchard-ios/upstream-xnu/osfmk/arm64/start.s:35:10: fatal error: 'assym.s' file not found
+   35 | #include "assym.s"
+      |          ^~~~~~~~~
+1 error generated.
+start_s_exit=1

@@ -1,0 +1,93 @@
+SOURCE_COMMIT=c54f35ca767986246321eb901baf8f5ff7923f6a
+=== BISON / FLEX ===
+bison=0 flex=0
+host_config_compiler=0
+=== VERIFY REAL APPLE XNU OPTION RULES ===
+ORIGINAL_XNU_INPUT_PRESENT: /home/runner/work/orchard-ios/orchard-ios/upstream-xnu/osfmk/conf/files
+ORIGINAL_XNU_INPUT_PRESENT: /home/runner/work/orchard-ios/orchard-ios/upstream-xnu/osfmk/conf/Makefile.template
+ORIGINAL_XNU_INPUT_PRESENT: /home/runner/work/orchard-ios/orchard-ios/upstream-xnu/config/MASTER
+ORIGINAL_XNU_INPUT_PRESENT: /home/runner/work/orchard-ios/orchard-ios/upstream-xnu/config/MASTER.arm64.bcm2837
+33:OPTIONS/mach_assert		optional mach_assert
+37:OPTIONS/mach_ldebug		optional mach_ldebug
+=== APPLE DOCONF ARM64 BCM2837 DEVELOPMENT ===
+doconf_exit=0
+=== DOCONF TRACE ===
+=== VERIFY REAL APPLE XNU OPTION RULES ===
+ORIGINAL_XNU_INPUT_PRESENT: /home/runner/work/orchard-ios/orchard-ios/upstream-xnu/osfmk/conf/files
+ORIGINAL_XNU_INPUT_PRESENT: /home/runner/work/orchard-ios/orchard-ios/upstream-xnu/osfmk/conf/Makefile.template
+ORIGINAL_XNU_INPUT_PRESENT: /home/runner/work/orchard-ios/orchard-ios/upstream-xnu/config/MASTER
+ORIGINAL_XNU_INPUT_PRESENT: /home/runner/work/orchard-ios/orchard-ios/upstream-xnu/config/MASTER.arm64.bcm2837
+33:OPTIONS/mach_assert		optional mach_assert
+37:OPTIONS/mach_ldebug		optional mach_ldebug
+=== APPLE DOCONF ARM64 BCM2837 DEVELOPMENT ===
+doconf_exit=0
+=== GENERATED FILES ===
+profile.h
+kdebug.h
+config_arm_pfz.h
+debug.h
+config_ecc_logging.h
+mach_assert.h
+nos_arm_pmap.h
+mach_ldebug.h
+mach_vm_debug.h
+Makefile
+config_sysdiagnose.h
+nos_arm_asm.h
+config_perfmon.h
+himem.h
+meta_features.h
+crypto.h
+monotonic.h
+importance_inheritance.h
+config_voucher_deprecated.h
+config_kdp_coredump_encryption.h
+eisa.h
+config_io_compression_stats.h
+no_kextd.h
+hibernation.h
+mach_kdp.h
+config_user_notification.h
+mach_flipc.h
+config_pv_ticket.h
+fb.h
+config_sched_proto.h
+config_sched_grrr_core.h
+config.DEVELOPMENT_ARM64
+importance_debug.h
+mig_debug.h
+config_audit.h
+config_arcade.h
+config_serial_kdp.h
+hi_res_clock.h
+ec.h
+config_dtrace.h
+ln.h
+config_deferred_reclaim.h
+vm_cpm.h
+ioconf.c
+config_quiesce_counter.h
+copyout_shim.h
+/home/runner/work/orchard-ios/orchard-ios/xnu-config-artifacts/generated/mach_assert.h
+/home/runner/work/orchard-ios/orchard-ios/xnu-config-artifacts/generated/mach_ldebug.h
+=== ORIGINAL XNU START.S ARM64 COMPILE ===
+start_s_exit=1
+=== START.S FIRST ERRORS ===
+=== ORIGINAL XNU START.S ARM64 COMPILE ===
+/home/runner/work/orchard-ios/orchard-ios/upstream-xnu/osfmk/arm64/start.s:35:10: fatal error: 'assym.s' file not found
+   35 | #include "assym.s"
+      |          ^~~~~~~~~
+1 error generated.
+start_s_exit=1
+=== ORIGINAL XNU GENASSYM.C ARM64 COMPILE ===
+genassym_exit=1
+=== GENASSYM.C FIRST ERRORS ===
+=== ORIGINAL XNU GENASSYM.C ARM64 COMPILE ===
+In file included from /home/runner/work/orchard-ios/orchard-ios/upstream-xnu/osfmk/arm64/genassym.c:64:
+In file included from /home/runner/work/orchard-ios/orchard-ios/upstream-xnu/osfmk/kern/ast.h:67:
+In file included from /home/runner/work/orchard-ios/orchard-ios/upstream-xnu/osfmk/kern/assert.h:65:
+/home/runner/work/orchard-ios/orchard-ios/upstream-xnu/bsd/sys/cdefs.h:793:10: fatal error: 'sys/_symbol_aliasing.h' file not found
+  793 | #include <sys/_symbol_aliasing.h>
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~
+1 error generated.
+genassym_exit=1

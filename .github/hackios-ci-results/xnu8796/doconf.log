@@ -1,0 +1,9 @@
+=== VERIFY REAL APPLE XNU OPTION RULES ===
+ORIGINAL_XNU_INPUT_PRESENT: /home/runner/work/orchard-ios/orchard-ios/upstream-xnu/osfmk/conf/files
+ORIGINAL_XNU_INPUT_PRESENT: /home/runner/work/orchard-ios/orchard-ios/upstream-xnu/osfmk/conf/Makefile.template
+ORIGINAL_XNU_INPUT_PRESENT: /home/runner/work/orchard-ios/orchard-ios/upstream-xnu/config/MASTER
+ORIGINAL_XNU_INPUT_PRESENT: /home/runner/work/orchard-ios/orchard-ios/upstream-xnu/config/MASTER.arm64.bcm2837
+33:OPTIONS/mach_assert		optional mach_assert
+37:OPTIONS/mach_ldebug		optional mach_ldebug
+=== APPLE DOCONF ARM64 BCM2837 DEVELOPMENT ===
+doconf_exit=0

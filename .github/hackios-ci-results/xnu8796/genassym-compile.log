@@ -1,0 +1,9 @@
+=== ORIGINAL XNU GENASSYM.C ARM64 COMPILE ===
+In file included from /home/runner/work/orchard-ios/orchard-ios/upstream-xnu/osfmk/arm64/genassym.c:64:
+In file included from /home/runner/work/orchard-ios/orchard-ios/upstream-xnu/osfmk/kern/ast.h:67:
+In file included from /home/runner/work/orchard-ios/orchard-ios/upstream-xnu/osfmk/kern/assert.h:65:
+/home/runner/work/orchard-ios/orchard-ios/upstream-xnu/bsd/sys/cdefs.h:793:10: fatal error: 'sys/_symbol_aliasing.h' file not found
+  793 | #include <sys/_symbol_aliasing.h>
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~
+1 error generated.
+genassym_exit=1
