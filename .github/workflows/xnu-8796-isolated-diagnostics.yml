@@ -1,0 +1,44 @@
+name: XNU 8796 isolated genuine header and assembly diagnostic (NO FLASH)
+on:
+  push:
+    branches: [hackios-xnu8796-ci-fixes-20261109]
+    paths: [".github/workflows/xnu-8796-isolated-diagnostics.yml", ".github/scripts/xnu-8796-macos-arm64.sh"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  genuine-xnu-iphoneos-assembly:
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install genuine parser tools
+        run: |
+          export HOMEBREW_NO_AUTO_UPDATE=1
+          brew install bison flex
+          echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix flex)/bin" >> "$GITHUB_PATH"
+          xcrun --sdk iphoneos --show-sdk-path
+      - name: Fetch original XNU at pinned revision
+        run: |
+          git clone --depth 1 --branch xnu-8796.121.2 https://github.com/apple-oss-distributions/xnu.git upstream-xnu
+          test "$(git -C upstream-xnu rev-parse HEAD)" = c54f35ca767986246321eb901baf8f5ff7923f6a
+      - name: Run original doconf and genassym before start.s
+        run: |
+          set -o pipefail
+          bash .github/scripts/xnu-8796-macos-arm64.sh 2>&1 | tee xnu-isolated-probe.log
+      - name: Preserve actual compiler outputs and checksum, never flash
+        if: always()
+        run: |
+          mkdir -p xnu-macos-build
+          find xnu-macos-build -type f \( -name '*.o' -o -name 'assym.s' -o -name 'mach_assert.h' -o -name 'mach_ldebug.h' \) -exec shasum -a 256 {} \; > xnu-macos-build/sha256.txt
+          printf 'No kernel or iOS physical boot claimed.\n' > xnu-macos-build/scope.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: xnu-8796-isolated-iphoneos-genuine-compiler-evidence
+          path: |
+            xnu-isolated-probe.log
+            xnu-macos-build/**
+          retention-days: 7
+          if-no-files-found: warn
