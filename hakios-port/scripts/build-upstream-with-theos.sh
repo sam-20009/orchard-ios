@@ -41,6 +41,12 @@ printf 'qemu_defconfig_rc=%s\n' "$DEF_RC" | tee "$LOG/status.txt"
 timeout 1100s make kernel JOBS=2 >"$LOG/real-xnu-kernel-build.log" 2>&1
 KERNEL_RC=$?
 printf 'make_kernel_rc=%s\n' "$KERNEL_RC" | tee -a "$LOG/status.txt"
+if [ -f xnu-deps/exporthdrs.log ]; then
+  cp -f xnu-deps/exporthdrs.log "$LOG/exporthdrs.log"
+  echo '=== EXACT EXPORT_HDRS ERRORS ==='
+  grep -nEi 'error:|fatal|not found|no such file|make: \*\*\*' "$LOG/exporthdrs.log" | head -n 45 || true
+  tail -n 65 "$LOG/exporthdrs.log" || true
+fi
 if [ -s hakios-kernel ]; then
   file hakios-kernel | tee "$LOG/real-kernel-file.txt"
   sha256sum hakios-kernel | tee "$LOG/real-kernel-sha256.txt"
