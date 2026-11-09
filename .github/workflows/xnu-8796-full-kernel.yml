@@ -9,7 +9,7 @@ permissions:
   contents: write
 jobs:
   full-xnu-arm64-bcm2837:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 45
     env:
       MACOS_VERSION: "13.5"
