@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   xnu-arm64-genuine:
@@ -46,3 +46,26 @@ jobs:
             xnu-macos-results/**
           if-no-files-found: warn
           retention-days: 7
+
+
+      - name: Publish exact macOS compiler failures to isolated CI branch
+        if: always()
+        continue-on-error: true
+        run: |
+          mkdir -p .github/hackios-ci-results/xnu8796-macos
+          for name in source-commit.txt host.log config.log doconf.log generated-files.txt symbol-aliasing.log genassym.log assym.log start.log; do
+            if [ -f "xnu-macos-results/$name" ]; then
+              cp "xnu-macos-results/$name" ".github/hackios-ci-results/xnu8796-macos/$name"
+            fi
+          done
+          if [ -f xnu-macos-probe.log ]; then
+            cp xnu-macos-probe.log .github/hackios-ci-results/xnu8796-macos/workflow-probe.log
+          fi
+          echo "$GITHUB_RUN_ID" > .github/hackios-ci-results/xnu8796-macos/run-id.txt
+          git config user.name "HackiOS GitHub Actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add .github/hackios-ci-results/xnu8796-macos
+          if ! git diff --cached --quiet; then
+            git commit -m "Preserve XNU macOS ARM64 diagnostic evidence [skip ci]"
+            git push origin "HEAD:$GITHUB_REF_NAME"
+          fi
