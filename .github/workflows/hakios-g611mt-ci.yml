@@ -108,10 +108,16 @@ jobs:
           printf 'qemu_exit=%s\n' "$rc" | tee ../qemu.status
           grep -E 'XNULOADER|hakios-kernel|hello|panic|exception|error' ../qemu-upstream-serial.log | tail -n 90 || true
           # "timeout" is normal only if serial evidence exists. Keep failure visible.
-          if grep -q 'hakios-kernel: version' ../qemu-upstream-serial.log; then
-             echo 'QEMU_KERNEL_BANNER_OBSERVED=YES (UPSTREAM PREBUILT)' | tee -a ../qemu.status
+          # Actual upstream prebuilt boots XNU, runs its raw-syscall hello as init,
+          # then panics when PID 1 exits. That is an XNU execution PASS,
+          # NOT a launchd or full-iOS boot PASS.
+          if grep -Fq '== XNULOADER v3 ==' ../qemu-upstream-serial.log &&
+             grep -Fq 'hello hakios-kernel!' ../qemu-upstream-serial.log &&
+             grep -Fq 'initproc failed to start' ../qemu-upstream-serial.log; then
+             echo 'QEMU_REAL_XNU_EXECUTED=PASS (UPSTREAM PREBUILT; PID 1 HELLO EXITED)' | tee -a ../qemu.status
+             echo 'QEMU_LAUNCHD_STARTED=NO; INITPROC_PANIC=OBSERVED' | tee -a ../qemu.status
           else
-             echo 'QEMU_KERNEL_BANNER_OBSERVED=NO' | tee -a ../qemu.status
+             echo 'QEMU_REAL_XNU_EXECUTED=NOT_CONFIRMED' | tee -a ../qemu.status
              exit 1
           fi
       - name: Upload loader and QEMU evidence
