@@ -1,0 +1,179 @@
+name: HakiOS SM-G611MT upstream baseline + Exynos 7870 probe (NO FLASH)
+on:
+  push:
+    branches:
+      - hackios-g611mt-hakios-port-20261109
+    paths:
+      - ".github/workflows/hakios-g611mt-ci.yml"
+      - "hakios-port/**"
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  UPSTREAM_COMMIT: 63fc2b4633bac3af8e57dadab9f5a8d4cb940438
+jobs:
+  doctor-and-device-config:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install host config prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y git python3 make clang lld gcc
+      - name: Fetch immutable upstream HakiOS
+        run: |
+          git clone --filter=blob:none --depth 1 https://github.com/oosexgang/hakios-xnu-kernel.git hakios
+          git -C hakios fetch --depth 1 origin "$UPSTREAM_COMMIT"
+          git -C hakios -c advice.detachedHead=false checkout --detach "$UPSTREAM_COMMIT"
+          test "$(git -C hakios rev-parse HEAD)" = "$UPSTREAM_COMMIT"
+          git -C hakios rev-parse HEAD | tee source-commit.txt
+      - name: Run genuine make doctor on upstream (no device attached)
+        run: |
+          set +e
+          cd hakios
+          make doctor > ../make-doctor.log 2>&1
+          code=$?
+          printf 'make_doctor_exit=%s\n' "$code" | tee ../doctor.status
+          sed -n '1,130p' ../make-doctor.log
+          exit 0
+      - name: Merge isolated Exynos on7xreflte config and validate
+        run: |
+          cp -a hakios-port/devices/on7xreflte hakios/devices/
+          cd hakios
+          set +e
+          python3 tools/hakios-device.py check on7xreflte > ../hakios-device-check.log 2>&1
+          rc1=$?
+          make on7xreflte_defconfig > ../on7xreflte-defconfig.log 2>&1
+          rc2=$?
+          if [ "$rc2" -eq 0 ]; then make config > ../on7xreflte-config.log 2>&1; fi
+          printf 'device_check_exit=%s\non7xreflte_defconfig_exit=%s\n' "$rc1" "$rc2" | tee ../exynos-config.status
+          tail -n 40 ../hakios-device-check.log
+          tail -n 40 ../on7xreflte-defconfig.log
+          test "$rc1" -eq 0 && test "$rc2" -eq 0
+      - name: Always upload source baseline validation
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hakios-g611mt-doctor-and-exynos-config
+          path: |
+            source-commit.txt
+            make-doctor.log
+            doctor.status
+            hakios-device-check.log
+            on7xreflte-defconfig.log
+            on7xreflte-config.log
+            exynos-config.status
+            hakios/.config
+          if-no-files-found: warn
+          retention-days: 14
+
+  upstream-loader-qemu-prebuilt:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install genuine AArch64 UEFI emulator / linker toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y git python3 clang lld make qemu-system-arm qemu-efi-aarch64 file
+          command -v qemu-system-aarch64
+          command -v lld-link
+          ls /usr/share/AAVMF/ || true
+      - name: Fetch pinned HakiOS upstream
+        run: |
+          git clone --filter=blob:none --depth 1 https://github.com/oosexgang/hakios-xnu-kernel.git hakios
+          git -C hakios fetch --depth 1 origin "$UPSTREAM_COMMIT"
+          git -C hakios -c advice.detachedHead=false checkout --detach "$UPSTREAM_COMMIT"
+          test "$(git -C hakios rev-parse HEAD)" = "$UPSTREAM_COMMIT"
+      - name: Execute make loader-open against genuine sources
+        run: |
+          set -o pipefail
+          cd hakios
+          make loader-open 2>&1 | tee ../loader-open.log
+          test -s xnuloader/loader.efi
+          file xnuloader/loader.efi | tee ../loader-file.txt
+          sha256sum xnuloader/loader.efi | tee ../loader-checksums.txt
+      - name: QEMU independent upstream prebuilt kernel provenance and boot
+        run: |
+          cd hakios
+          test -s prebuilt/hakios-kernel
+          test -s prebuilt/userland/hello
+          file prebuilt/hakios-kernel | tee ../upstream-kernel-file.txt
+          sha256sum prebuilt/hakios-kernel prebuilt/userland/hello | tee ../upstream-prebuilt-sha256.txt
+          python3 xnuloader/mkpayload.py -o qemu/payload.bin kernel=prebuilt/hakios-kernel ramdisk=prebuilt/userland/hello --cmdline "cpus=1" --no-version 2>&1 | tee ../payload.log
+          set +e
+          QEMU_MEM=4G bash qemu/run.sh 35 > ../qemu-upstream-serial.log 2>&1
+          rc=$?
+          printf 'qemu_exit=%s\n' "$rc" | tee ../qemu.status
+          grep -E 'XNULOADER|hakios-kernel|hello|panic|exception|error' ../qemu-upstream-serial.log | tail -n 90 || true
+          # "timeout" is normal only if serial evidence exists. Keep failure visible.
+          if grep -q 'hakios-kernel: version' ../qemu-upstream-serial.log; then
+             echo 'QEMU_KERNEL_BANNER_OBSERVED=YES (UPSTREAM PREBUILT)' | tee -a ../qemu.status
+          else
+             echo 'QEMU_KERNEL_BANNER_OBSERVED=NO' | tee -a ../qemu.status
+             exit 1
+          fi
+      - name: Upload loader and QEMU evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hakios-upstream-loader-and-qemu-evidence
+          path: |
+            loader-open.log
+            loader-file.txt
+            loader-checksums.txt
+            upstream-kernel-file.txt
+            upstream-prebuilt-sha256.txt
+            payload.log
+            qemu-upstream-serial.log
+            qemu.status
+            hakios/xnuloader/loader.efi
+          if-no-files-found: warn
+          retention-days: 14
+
+  original-source-make-kernel-qemu-open:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install base tools for the original XNU build path
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y git curl xz-utils clang lld llvm gcc g++ make \
+            flex bison m4 perl python3 autoconf automake libtool \
+            qemu-system-arm qemu-efi-aarch64 file
+      - name: Clone pinned HakiOS and run requested build commands
+        run: |
+          git clone --filter=blob:none --depth 1 https://github.com/oosexgang/hakios-xnu-kernel.git hakios
+          git -C hakios fetch --depth 1 origin "$UPSTREAM_COMMIT"
+          git -C hakios -c advice.detachedHead=false checkout --detach "$UPSTREAM_COMMIT"
+          cd hakios
+          set +e
+          timeout 900s make kernel JOBS=2 > ../make-kernel.log 2>&1
+          krc=$?
+          printf 'make_kernel_exit=%s\n' "$krc" | tee ../kernel.status
+          test -s hakios-kernel && { file hakios-kernel | tee ../compiled-kernel-file.txt; sha256sum hakios-kernel > ../compiled-kernel-sha256.txt; }
+          timeout 100s make qemu-open SECS=25 JOBS=2 > ../make-qemu-open.log 2>&1
+          qrc=$?
+          printf 'make_qemu_open_exit=%s\n' "$qrc" | tee ../qemu-open.status
+          tail -n 80 ../make-kernel.log
+          tail -n 70 ../make-qemu-open.log
+          test "$krc" -eq 0 && test "$qrc" -eq 0
+      - name: Upload full honest compile/error logs and any actual objects
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hakios-upstream-original-kernel-qemu-open-build-logs
+          path: |
+            kernel.status
+            qemu-open.status
+            make-kernel.log
+            make-qemu-open.log
+            compiled-kernel-file.txt
+            compiled-kernel-sha256.txt
+            hakios/xnu-build.log
+            hakios/logs/qemu-open.log
+            hakios/hakios-kernel
+          if-no-files-found: warn
+          retention-days: 14
