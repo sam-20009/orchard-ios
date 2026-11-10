@@ -1,0 +1,46 @@
+name: HackiOS Exynos7870 real-source XNU probe (NO FLASH)
+on:
+  push:
+    branches:
+      - hackios-g611mt-exynos-probe-20261110
+    paths:
+      - ".github/workflows/hakios-g611mt-exynos-probe.yml"
+      - "hakios-port/**"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-exynos-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 38
+    env:
+      HAKIOS_TARGET: on7xreflte
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install real ARM64 XNU build prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y git curl xz-utils tar gcc g++ make \
+            clang lld llvm flex bison m4 perl python3 autoconf automake \
+            libtool uuid-dev libbsd-dev qemu-system-arm qemu-efi-aarch64 file
+      - name: Clone pinned HakiOS source
+        run: |
+          git clone --depth 1 --filter=blob:none https://github.com/oosexgang/hakios-xnu-kernel.git hakios
+          git -C hakios fetch --depth 1 origin 63fc2b4633bac3af8e57dadab9f5a8d4cb940438
+          git -C hakios -c advice.detachedHead=false checkout --detach 63fc2b4633bac3af8e57dadab9f5a8d4cb940438
+          test "$(git -C hakios rev-parse HEAD)" = 63fc2b4633bac3af8e57dadab9f5a8d4cb940438
+      - name: Validate Exynos config and compile actual XNU source
+        run: |
+          bash hakios-port/scripts/build-upstream-with-theos.sh
+      - name: Preserve all logs and actual kernel if produced
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hackios-exynos7870-real-xnu-evidence
+          path: |
+            ci-evidence/*.txt
+            ci-evidence/*.log
+            hakios/hakios-kernel
+            hakios/xnu-build.log
+          retention-days: 14
+          if-no-files-found: warn
