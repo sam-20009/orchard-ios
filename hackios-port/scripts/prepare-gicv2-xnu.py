@@ -58,7 +58,13 @@ s = qemu.read_text()
 oldvirt = "-M virt,gic-version=3 -cpu cortex-a76"
 if s.count(oldvirt) != 1:
     raise SystemExit("Pinned QEMU machine selection changed")
-qemu.write_text(s.replace(oldvirt,
-    "-M virt,gic-version=2 -cpu cortex-a53"))
+s = s.replace(oldvirt, "-M virt,gic-version=2 -cpu cortex-a53")
+trace_key = "-display none -serial stdio -monitor none -no-reboot"
+if s.count(trace_key) != 1:
+    raise SystemExit("Pinned QEMU serial flags changed")
+s = s.replace(trace_key,
+    "-d int,guest_errors -D ../../ci-evidence/qemu-exceptions.log "
+    + trace_key)
+qemu.write_text(s)
 print("GICV2_A53_XNU_AND_UEFI_PATCH=APPLIED")
 print("PHYSICAL_SAMSUNG_BOOT=NOT_TESTED")
