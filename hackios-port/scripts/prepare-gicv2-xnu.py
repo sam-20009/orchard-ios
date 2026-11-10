@@ -26,6 +26,11 @@ if s.count(oldpan) != 1:
     raise SystemExit("Pinned HakiOS PAN macro not found")
 s = s.replace(oldpan,
     "+#define __ARM_PAN_AVAILABLE__     0 /* ARMv8.0 Cortex-A53 */")
+# The GNU diff hunk gains one line when adding the new GICv2 feature flag.
+hunk = "@@ -11,6 +11,15 @@"
+if s.count(hunk) != 1:
+    raise SystemExit("Pinned BCM2837 header diff hunk changed")
+s = s.replace(hunk, "@@ -11,6 +11,16 @@")
 patch.write_text(s)
 
 s = code.read_text()
