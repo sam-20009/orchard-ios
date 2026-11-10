@@ -20,7 +20,7 @@ jobs:
         include:
           - { cpu: cortex-a53, gic: "3" }
           - { cpu: cortex-a76, gic: "2" }
-     env:
+    env:
       QEMU_CPU: ${{ matrix.cpu }}
       QEMU_GIC_VERSION: ${{ matrix.gic }}
       QEMU_TRACE: "1"
