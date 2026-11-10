@@ -44,13 +44,13 @@ for idx, (p, u) in reversed(list(enumerate(zip(pan, uao)))):
     if u != p + 1:
         raise SystemExit("PAN/UAO pair no longer adjacent")
     label = "7" if idx == 0 else "6"
-    lines.insert(u + 1, f'        "{label}:\\n"\\n')
+    lines.insert(u + 1, f'        "{label}:\\n"\n')
     for ins in reversed([
         "  mrs x11, id_aa64mmfr1_el1",
         "  ubfx x11, x11, #20, #4",
         f"  cbz x11, {label}f",
     ]):
-        lines.insert(p, f'        "{ins}\\n"\\n')
+        lines.insert(p, f'        "{ins}\\n"\n')
 
 out = "".join(lines)
 assert out.count("  cbz x11, 9f") == 1
