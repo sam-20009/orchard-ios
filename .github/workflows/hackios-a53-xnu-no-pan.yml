@@ -33,7 +33,7 @@ jobs:
           grep -F '#define __ARM_PAN_AVAILABLE__     0' hakios/xnu/hakios.patch
       - name: Build actual XNU and boot A53/GICv3 reference QEMU
         run: |
-          bash hackios-port/scripts/build-upstream-with-theos.sh
+          bash hakios-port/scripts/build-upstream-with-theos.sh
           test -s hakios/hakios-kernel
           grep -F 'qemu_xnu_boot=PASS' ci-evidence/status.txt
           grep -F 'Hello from user space on Darwin!' hakios/logs/qemu-open.log
