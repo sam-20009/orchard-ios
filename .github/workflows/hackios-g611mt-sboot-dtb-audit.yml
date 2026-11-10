@@ -1,0 +1,51 @@
+name: HackiOS SM-G611MT Exynos7870 S-Boot DTB audit (NO FLASH)
+on:
+  push:
+    branches: [hackios-g611mt-exynos-probe-20261110]
+    paths:
+      - ".github/workflows/hackios-g611mt-sboot-dtb-audit.yml"
+      - "hackios-g611mt/sboot-exynos7870-bootinfo.dts"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-sboot-dtb-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install offline DT utilities
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y device-tree-compiler
+      - name: Compile and inspect Exynos7870 S-Boot informational DTB
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dtb-evidence
+          dtc -I dts -O dtb -o dtb-evidence/sboot-exynos7870-info.dtb hackios-g611mt/sboot-exynos7870-bootinfo.dts 2>&1 | tee dtb-evidence/dtc.log
+          test "$(fdtget -t s dtb-evidence/sboot-exynos7870-info.dtb / compatible)" = "samsung,exynos7870"
+          test "$(fdtget -t x dtb-evidence/sboot-exynos7870-info.dtb / model_info-chip)" = "1ebe"
+          test "$(fdtget -t x dtb-evidence/sboot-exynos7870-info.dtb /memory@80000000 reg)" = "0 80000000 0"
+          test "$(fdtget -t x dtb-evidence/sboot-exynos7870-info.dtb /memory@100000000 reg)" = "1 0 0"
+          file dtb-evidence/sboot-exynos7870-info.dtb | tee dtb-evidence/file.txt
+          sha256sum dtb-evidence/sboot-exynos7870-info.dtb | tee dtb-evidence/sha256.txt
+          {
+            echo 'DTB_SYNTAX=PASS'
+            echo 'SOC_BINDING=samsung,exynos7870'
+            echo 'RAM_SIZE=UNRESOLVED_SBOOT_RUNTIME'
+            echo 'SBOOT_HANDOFF=NOT_TESTED'
+            echo 'UEFI_PORT=NOT_IMPLEMENTED'
+            echo 'XNU_EXYNOS_MACHINE=NOT_IMPLEMENTED'
+            echo 'IOS16_USERLAND=NOT_IMPLEMENTED'
+            echo 'INSTALL_READY=NO'
+            echo 'FLASH_ALLOWED=NO'
+          } | tee dtb-evidence/status.txt
+      - name: Upload reference DTB and evidence only, never a boot image
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hackios-g611mt-sboot-dtb-offline-audit-NOT-INSTALLABLE
+          path: dtb-evidence/
+          if-no-files-found: warn
+          retention-days: 14

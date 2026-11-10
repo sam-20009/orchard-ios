@@ -1,0 +1,58 @@
+name: HackiOS GICv2-aware UEFI loader proof (NO FLASH)
+on:
+  push:
+    branches:
+      - hackios-g611mt-exynos-probe-20261110
+    paths:
+      - "hackios-port/scripts/prepare-gicv2-loader.py"
+      - ".github/workflows/hackios-gicv2-loader-probe.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  gicv2-loader:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      QEMU_CPU: cortex-a76
+      QEMU_GIC_VERSION: "2"
+      QEMU_TRACE: "1"
+      QEMU_SECONDS: "18"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install independent UEFI/QEMU build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y git python3 clang lld llvm qemu-system-arm qemu-efi-aarch64 file
+      - name: Fetch pinned source and implement feature-gated loader
+        run: |
+          git clone --depth 1 --filter=blob:none https://github.com/oosexgang/hakios-xnu-kernel.git hakios
+          git -C hakios fetch --depth 1 origin 63fc2b4633bac3af8e57dadab9f5a8d4cb940438
+          git -C hakios -c advice.detachedHead=false checkout --detach 63fc2b4633bac3af8e57dadab9f5a8d4cb940438
+          python3 hackios-port/scripts/prepare-gicv2-loader.py
+      - name: Build genuine AArch64 UEFI xnuloader
+        run: |
+          make -C hakios loader-open
+          file hakios/xnuloader/loader.efi
+          test -s hakios/xnuloader/loader.efi
+      - name: Reuse existing successful source-built XNU kernel
+        uses: actions/download-artifact@v4
+        with:
+          name: hakios-actual-XNU-source-linux-toolchain-evidence
+          run-id: 42680246869
+          github-token: ${{ github.token }}
+          path: imported-kernel
+      - name: Boot modified loader under Cortex-A76 GICv2
+        run: |
+          bash hackios-port/scripts/qemu-a53-gic2-probe.sh
+      - name: Preserve serial, exception logs and EFI loader
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xnu-gicv2-feature-gated-loader-proof-NOT-FIRMWARE
+          path: |
+            a53-evidence/
+            hakios/xnuloader/loader.efi
+          retention-days: 14
+          if-no-files-found: warn

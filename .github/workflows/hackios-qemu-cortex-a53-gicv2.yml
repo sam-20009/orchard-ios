@@ -1,0 +1,57 @@
+name: HackiOS genuine XNU on Cortex-A53 GICv2 (NO FLASH)
+on:
+  push:
+    branches:
+      - hackios-g611mt-exynos-probe-20261110
+    paths:
+      - "hackios-port/scripts/qemu-a53-gic2-probe.sh"
+      - ".github/workflows/hackios-qemu-cortex-a53-gicv2.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  cortex-a53-gic2:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { cpu: cortex-a53, gic: "3" }
+          - { cpu: cortex-a76, gic: "2" }
+    env:
+      QEMU_CPU: ${{ matrix.cpu }}
+      QEMU_GIC_VERSION: ${{ matrix.gic }}
+      QEMU_TRACE: "1"
+      QEMU_SECONDS: "16"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install QEMU AArch64 UEFI and Mach-O identification tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y git python3 qemu-system-arm qemu-efi-aarch64 file
+      - name: Fetch pinned open-source HakiOS
+        run: |
+          git clone --depth 1 --filter=blob:none https://github.com/oosexgang/hakios-xnu-kernel.git hakios
+          git -C hakios fetch --depth 1 origin 63fc2b4633bac3af8e57dadab9f5a8d4cb940438
+          git -C hakios -c advice.detachedHead=false checkout --detach 63fc2b4633bac3af8e57dadab9f5a8d4cb940438
+          test "$(git -C hakios rev-parse HEAD)" = 63fc2b4633bac3af8e57dadab9f5a8d4cb940438
+      - name: Download real XNU kernel from successful original source build
+        uses: actions/download-artifact@v4
+        with:
+          name: hakios-actual-XNU-source-linux-toolchain-evidence
+          run-id: 42680246869
+          github-token: ${{ github.token }}
+          path: imported-kernel
+      - name: Boot authentic XNU under Cortex-A53 with GICv2
+        run: |
+          bash hackios-port/scripts/qemu-a53-gic2-probe.sh
+      - name: Publish logs, never firmware
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xnu-${{ matrix.cpu }}-gic${{ matrix.gic }}-evidence-NOT-PHONE
+          path: a53-evidence/
+          retention-days: 14
+          if-no-files-found: warn

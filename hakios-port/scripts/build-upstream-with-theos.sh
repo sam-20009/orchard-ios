@@ -34,10 +34,30 @@ ln -s "$TOP/theos-sdks/iPhoneOS16.5.sdk" "$THEOS/sdks/iPhoneOS16.5.sdk"
 test -d "$THEOS/sdks/iPhoneOS16.5.sdk/usr/include" || { echo "SDK_MISSING" | tee -a "$LOG/theos-setup.log"; exit 24; }
 echo "THEOS_REAL_SDK_AND_LINKER_READY" | tee -a "$LOG/theos-setup.log"
 cd hakios || exit 1
-set +e
-make qemu_defconfig > "$LOG/qemu-defconfig.log" 2>&1
+TARGET="${HAKIOS_TARGET:-qemu}"
+case "$TARGET" in
+  qemu) ;;
+  on7xreflte)
+    cp -a "$TOP/hakios-port/devices/on7xreflte" "$TOP/hakios/devices/" || exit 27
+    ;;
+  *) echo "UNSUPPORTED_TARGET=$TARGET" | tee "$LOG/status.txt"; exit 28 ;;
+esac
+printf 'target=%s\n' "$TARGET" | tee "$LOG/status.txt"
+if [ "$TARGET" = "on7xreflte" ]; then
+  python3 tools/hakios-device.py check "$TARGET" > "$LOG/device-check.log" 2>&1
+  CHECK_RC=$?
+  printf 'device_check_rc=%s\n' "$CHECK_RC" | tee -a "$LOG/status.txt"
+  if [ "$CHECK_RC" -ne 0 ]; then tail -n 90 "$LOG/device-check.log"; exit "$CHECK_RC"; fi
+fi
+make "${TARGET}_defconfig" > "$LOG/device-defconfig.log" 2>&1
 DEF_RC=$?
-printf 'qemu_defconfig_rc=%s\n' "$DEF_RC" | tee "$LOG/status.txt"
+printf 'device_defconfig_rc=%s\n' "$DEF_RC" | tee -a "$LOG/status.txt"
+if [ "$DEF_RC" -ne 0 ]; then tail -n 90 "$LOG/device-defconfig.log"; exit "$DEF_RC"; fi
+make config > "$LOG/device-config.log" 2>&1
+CONFIG_RC=$?
+printf 'device_config_rc=%s\n' "$CONFIG_RC" | tee -a "$LOG/status.txt"
+if [ "$CONFIG_RC" -ne 0 ]; then tail -n 90 "$LOG/device-config.log"; exit "$CONFIG_RC"; fi
+cp -f .config "$LOG/active-config.txt"
 timeout 1100s make kernel JOBS=2 >"$LOG/real-xnu-kernel-build.log" 2>&1
 KERNEL_RC=$?
 printf 'make_kernel_rc=%s\n' "$KERNEL_RC" | tee -a "$LOG/status.txt"
@@ -50,11 +70,29 @@ fi
 if [ -s hakios-kernel ]; then
   file hakios-kernel | tee "$LOG/real-kernel-file.txt"
   sha256sum hakios-kernel | tee "$LOG/real-kernel-sha256.txt"
-  timeout 180s make qemu-open SECS=35 JOBS=2 >"$LOG/make-qemu-open.log" 2>&1
-  QEMU_RC=$?
-  printf 'make_qemu_open_rc=%s\n' "$QEMU_RC" | tee -a "$LOG/status.txt"
+  if [ "$TARGET" = "qemu" ]; then
+    timeout 180s make qemu-open SECS=35 JOBS=2 >"$LOG/make-qemu-open.log" 2>&1
+    QEMU_RC=$?
+    printf 'make_qemu_open_rc=%s\n' "$QEMU_RC" | tee -a "$LOG/status.txt"
+    if [ -f logs/qemu-open.log ]; then
+      if grep -Fq '== XNULOADER v3 ==' logs/qemu-open.log &&
+         grep -Fq 'Darwin Kernel Version' logs/qemu-open.log; then
+        echo 'qemu_xnu_boot=PASS' | tee -a "$LOG/status.txt"
+      else
+        echo 'qemu_xnu_boot=FAIL(no boot evidence)' | tee -a "$LOG/status.txt"
+        exit 31
+      fi
+    else
+      echo 'qemu_xnu_boot=FAIL(no serial log)' | tee -a "$LOG/status.txt"
+      exit 32
+    fi
+  else
+    printf 'make_qemu_open_rc=NOT_TESTED(Exynos config cannot be validated in QEMU virt)\n' | tee -a "$LOG/status.txt"
+    printf 'samsung_hardware_boot=NOT_TESTED\n' | tee -a "$LOG/status.txt"
+  fi
 else
-  printf 'make_qemu_open_rc=NOT_TESTED(no compiled kernel)\n' | tee -a "$LOG/status.txt"
+  echo 'kernel_artifact=FAIL(no compiled kernel)' | tee -a "$LOG/status.txt"
+  exit 33
 fi
 tail -n 85 "$LOG/real-xnu-kernel-build.log"
 test "$KERNEL_RC" -eq 0

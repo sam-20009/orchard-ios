@@ -1,0 +1,26 @@
+/dts-v1/;
+
+/*
+ * Exynos 7870 S-Boot discovery stub for HackiOS SM-G611MT.
+ * Structure-only validation input. NOT a Samsung boot or firmware image.
+ * No usable RAM range or load address is asserted here.
+ */
+/ {
+    compatible = "samsung,exynos7870";
+    model = "HackiOS G611MT Exynos 7870 S-Boot DTB research stub";
+    #address-cells = <2>;
+    #size-cells = <1>;
+
+    model_info-chip = <7870>;
+    model_info-hw_rev = <0>;
+    model_info-hw_rev_end = <255>;
+    chosen { };
+    memory@80000000 {
+        device_type = "memory";
+        reg = <0x0 0x80000000 0x0>;
+    };
+    memory@100000000 {
+        device_type = "memory";
+        reg = <0x1 0x00000000 0x0>;
+    };
+};
