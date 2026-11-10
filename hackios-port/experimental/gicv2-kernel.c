@@ -210,11 +210,13 @@ gic_v3_irq_cpu_init(void) {
     *(volatile uint8_t *)(gic2_dist+GIC2D_IPRIORITYR(GIC2_TIMER_ID))
         =GIC2_PRIORITY;
     gic2_write(gic2_dist+GIC2D_ISENABLER(0),mine);
+    /* EL1 is Non-secure: GICv2 exposes Group1 enable as bit 0 in
+     * both GICD_CTLR and GICC_CTLR, not the Secure view's bit 1. */
     gic2_write(gic2_dist+GIC2D_CTLR,
-        gic2_read(gic2_dist+GIC2D_CTLR)|2u);
+        gic2_read(gic2_dist+GIC2D_CTLR)|1u);
     gic2_write(gic2_cpu+GIC2C_PMR,0xff);
     gic2_write(gic2_cpu+GIC2C_BPR,0);
-    gic2_write(gic2_cpu+GIC2C_CTLR,2u);
+    gic2_write(gic2_cpu+GIC2C_CTLR,1u);
     ml_install_interrupt_handler(NULL,0,NULL,gic2_irq_handler,NULL);
     kprintf("gic2: distributor %p, CPU interface %p, timer PPI %u\n",
         (void *)gic2_dist,(void *)gic2_cpu,GIC2_TIMER_ID);
