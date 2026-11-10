@@ -14,6 +14,16 @@ jobs:
   cortex-a53-gic2:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { cpu: cortex-a53, gic: "3" }
+          - { cpu: cortex-a76, gic: "2" }
+          - { cpu: cortex-a76, gic: "3" }
+    env:
+      QEMU_CPU: ${{ matrix.cpu }}
+      QEMU_GIC_VERSION: ${{ matrix.gic }}
     steps:
       - uses: actions/checkout@v4
       - name: Install QEMU AArch64 UEFI and Mach-O identification tools
@@ -40,7 +50,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: xnu-cortex-a53-gicv2-serial-evidence-NOT-PHONE
+          name: xnu-${{ matrix.cpu }}-gic${{ matrix.gic }}-evidence-NOT-PHONE
           path: a53-evidence/
           retention-days: 14
           if-no-files-found: warn
