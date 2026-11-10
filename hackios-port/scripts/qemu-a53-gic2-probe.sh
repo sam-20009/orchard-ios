@@ -5,6 +5,10 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 HAKIOS="$ROOT/hakios"
+CPU="${QEMU_CPU:-cortex-a53}"
+GIC="${QEMU_GIC_VERSION:-2}"
+case "$CPU" in cortex-a53|cortex-a76) ;; *) echo "unsupported CPU" >&2; exit 8 ;; esac
+case "$GIC" in 2|3) ;; *) echo "unsupported GIC" >&2; exit 8 ;; esac
 LOG="$ROOT/a53-evidence"
 mkdir -p "$LOG"
 
@@ -36,36 +40,38 @@ python3 xnuloader/mkpayload.py -o qemu/payload.bin \
   --cmdline "cpus=1" --no-version > "$LOG/payload-build.log" 2>&1
 
 # Isolated CI-only modification; the upstream file is never committed or flashed.
+export QEMU_CPU="$CPU" QEMU_GIC_VERSION="$GIC"
 python3 - <<'PY'
 from pathlib import Path
 script = Path("qemu/run.sh")
 s = script.read_text()
 before = "-M virt,gic-version=3 -cpu cortex-a76"
-after = "-M virt,gic-version=2 -cpu cortex-a53"
+import os
+after = "-M virt,gic-version=" + os.environ["QEMU_GIC_VERSION"] + " -cpu " + os.environ["QEMU_CPU"]
 if s.count(before) != 1:
     raise SystemExit("FAIL: pinned QEMU invocation changed upstream")
 script.write_text(s.replace(before, after))
 PY
 
 set +e
-QEMU_MEM=4G bash qemu/run.sh 48 > "$LOG/qemu-cortex-a53-gicv2-serial.log" 2>&1
+QEMU_MEM=4G bash qemu/run.sh 48 > "$LOG/qemu-serial.log" 2>&1
 rc=$?
 set -e
 echo "qemu_process_exit=$rc" >> "$LOG/status.txt"
-echo "machine=virt,gic-version=2" >> "$LOG/status.txt"
-echo "cpu=cortex-a53" >> "$LOG/status.txt"
+echo "machine=virt,gic-version=$GIC" >> "$LOG/status.txt"
+echo "cpu=$CPU" >> "$LOG/status.txt"
 
-if grep -Fq '== XNULOADER v3 ==' "$LOG/qemu-cortex-a53-gicv2-serial.log"; then
+if grep -Fq '== XNULOADER v3 ==' "$LOG/qemu-serial.log"; then
   echo "loader_started=PASS" >> "$LOG/status.txt"
 else
   echo "loader_started=FAIL" >> "$LOG/status.txt"
 fi
-if grep -Fq 'Darwin Kernel Version' "$LOG/qemu-cortex-a53-gicv2-serial.log"; then
+if grep -Fq 'Darwin Kernel Version' "$LOG/qemu-serial.log"; then
   echo "xnu_started=PASS" >> "$LOG/status.txt"
 else
   echo "xnu_started=FAIL" >> "$LOG/status.txt"
 fi
-if grep -Fq 'Hello from user space on Darwin!' "$LOG/qemu-cortex-a53-gicv2-serial.log"; then
+if grep -Fq 'Hello from user space on Darwin!' "$LOG/qemu-serial.log"; then
   echo "hello_userland=PASS" >> "$LOG/status.txt"
 else
   echo "hello_userland=FAIL" >> "$LOG/status.txt"
