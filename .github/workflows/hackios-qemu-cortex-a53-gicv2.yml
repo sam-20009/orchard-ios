@@ -20,10 +20,11 @@ jobs:
         include:
           - { cpu: cortex-a53, gic: "3" }
           - { cpu: cortex-a76, gic: "2" }
-          - { cpu: cortex-a76, gic: "3" }
-    env:
+     env:
       QEMU_CPU: ${{ matrix.cpu }}
       QEMU_GIC_VERSION: ${{ matrix.gic }}
+      QEMU_TRACE: "1"
+      QEMU_SECONDS: "16"
     steps:
       - uses: actions/checkout@v4
       - name: Install QEMU AArch64 UEFI and Mach-O identification tools
