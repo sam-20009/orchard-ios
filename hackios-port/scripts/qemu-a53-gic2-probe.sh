@@ -53,8 +53,13 @@ if s.count(before) != 1:
 script.write_text(s.replace(before, after))
 PY
 
+QEMU_SECONDS="${QEMU_SECONDS:-48}"
+extra_args=()
+if [ "${QEMU_TRACE:-0}" = "1" ]; then
+  extra_args=(-d int,guest_errors,unimp -D "$LOG/qemu-exceptions.log")
+fi
 set +e
-QEMU_MEM=4G bash qemu/run.sh 48 > "$LOG/qemu-serial.log" 2>&1
+QEMU_MEM=4G bash qemu/run.sh "$QEMU_SECONDS" "${extra_args[@]}" > "$LOG/qemu-serial.log" 2>&1
 rc=$?
 set -e
 echo "qemu_process_exit=$rc" >> "$LOG/status.txt"
