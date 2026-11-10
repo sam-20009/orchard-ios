@@ -1,0 +1,52 @@
+name: HackiOS genuine XNU ARMv8.0 Cortex-A53 PAN fix build (NO FLASH)
+on:
+  push:
+    branches:
+      - hackios-g611mt-exynos-probe-20261110
+    paths:
+      - "hackios-port/scripts/prepare-a53-xnu.sh"
+      - ".github/workflows/hackios-a53-xnu-no-pan.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cortex-a53-real-xnu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 36
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install original source build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y git curl xz-utils tar gcc g++ make clang lld llvm \
+            flex bison m4 perl python3 autoconf automake libtool uuid-dev libbsd-dev \
+            qemu-system-arm qemu-efi-aarch64 file
+      - name: Retrieve pinned upstream source
+        run: |
+          git clone --depth 1 --filter=blob:none https://github.com/oosexgang/hakios-xnu-kernel.git hakios
+          git -C hakios fetch --depth 1 origin 63fc2b4633bac3af8e57dadab9f5a8d4cb940438
+          git -C hakios -c advice.detachedHead=false checkout --detach 63fc2b4633bac3af8e57dadab9f5a8d4cb940438
+          test "$(git -C hakios rev-parse HEAD)" = 63fc2b4633bac3af8e57dadab9f5a8d4cb940438
+      - name: Apply ARMv8.0 Cortex-A53 PAN compatibility correction
+        run: |
+          bash hackios-port/scripts/prepare-a53-xnu.sh
+          grep -F '#define __ARM_PAN_AVAILABLE__     0' hakios/xnu/hakios.patch
+      - name: Build actual XNU and boot A53/GICv3 reference QEMU
+        run: |
+          bash hackios-port/scripts/build-upstream-with-theos.sh
+          test -s hakios/hakios-kernel
+          grep -F 'qemu_xnu_boot=PASS' ci-evidence/status.txt
+          grep -F 'Hello from user space on Darwin!' hakios/logs/qemu-open.log
+      - name: Preserve real kernel and QEMU serial proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hackios-a53-no-pan-real-xnu-and-serial-NOT-INSTALLABLE
+          path: |
+            ci-evidence/*.txt
+            ci-evidence/*.log
+            hakios/hakios-kernel
+            hakios/xnu-build.log
+            hakios/logs/qemu-open.log
+          if-no-files-found: warn
+          retention-days: 14
